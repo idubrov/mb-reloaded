@@ -1,0 +1,12 @@
+[package]
+name = "mb-reloaded-tools"
+version = "0.1.0"
+authors = ["Ivan Dubrov <dubrov.ivan@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+mb-reloaded = { path = ".." }
+anyhow = "1.0.31"
+png = "0.16.3"
+structopt = "0.3.14"
+thiserror = "1.0.18"
