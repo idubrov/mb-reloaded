@@ -2,6 +2,7 @@ use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::{Glyph, Glyphs};
 use sdl2::keyboard::Scancode;
+use sdl2::mixer::Music;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::Texture;
@@ -32,6 +33,9 @@ struct Application {
     info: [Texture; 4],
     codes: Texture,
     glyphs: Glyphs,
+    music1: Music<'static>,
+    // Position 465 is position of shop music.
+    music2: Music<'static>,
     context: ApplicationContext,
 }
 
@@ -80,11 +84,15 @@ impl Application {
                 context.load_texture("info2.spy")?,
             ],
             codes: context.load_texture("codes.spy")?,
+            music1: context.load_music("huippe.s3m")?,
+            music2: context.load_music("oeku.s3m")?,
             context,
         })
     }
 
     fn main_loop(mut self) -> Result<(), anyhow::Error> {
+        self.music1.play(-1).map_err(SdlError)?;
+
         self.context.render_texture(&self.title)?;
         self.context.animate(Animation::FadeUp, 7)?;
         let key = self.context.wait_key_pressed();

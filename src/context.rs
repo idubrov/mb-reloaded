@@ -2,6 +2,7 @@ use crate::error::ApplicationError::SdlError;
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
+use sdl2::mixer::{Music, AUDIO_S16LSB};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
@@ -51,6 +52,9 @@ impl ApplicationContext {
             SCREEN_WIDTH as u32,
             SCREEN_HEIGHT as u32,
         )?;
+
+        // Initialize audio
+        sdl2::mixer::open_audio(48000, AUDIO_S16LSB, 2, 1024).map_err(SdlError)?;
         Ok(Self {
             game_dir,
             canvas,
@@ -86,6 +90,12 @@ impl ApplicationContext {
     pub fn load_texture(&self, file_name: &str) -> Result<Texture, anyhow::Error> {
         let path = self.game_dir.join(file_name);
         Ok(crate::spy::load_texture(&self.texture_creator, &path)?)
+    }
+
+    pub fn load_music(&self, file_name: &str) -> Result<Music<'static>, anyhow::Error> {
+        let path = self.game_dir.join(file_name);
+        let music = Music::from_file(path).map_err(SdlError)?;
+        Ok(music)
     }
 
     pub fn animate(&mut self, animation: Animation, steps: usize) -> Result<(), anyhow::Error> {

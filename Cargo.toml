@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.31"
 thiserror = "1.0.18"
-sdl2 = { version = "0.34.0", features = ["unsafe_textures"] }
+sdl2 = { version = "0.34.0", features = ["unsafe_textures", "mixer"] }
 
 [workspace]
 members = [
