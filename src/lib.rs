@@ -1,151 +1,214 @@
-use sdl2::event::Event;
-use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::render::{BlendMode, Texture, WindowCanvas};
-use sdl2::EventPump;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
-use thiserror::Error;
+use crate::context::{Animation, ApplicationContext};
+use crate::error::ApplicationError::SdlError;
+use crate::glyphs::{Glyph, Glyphs};
+use sdl2::keyboard::Scancode;
+use sdl2::pixels::Color;
+use sdl2::rect::Rect;
+use sdl2::render::Texture;
 
+mod args;
+mod context;
+mod error;
+mod glyphs;
 pub mod spy;
 
-const WIDTH: usize = 640;
-const HEIGHT: usize = 480;
+const SCREEN_WIDTH: usize = 640;
+const SCREEN_HEIGHT: usize = 480;
 
-#[derive(Debug, Error)]
-enum ApplicationError {
-    #[error("SDL error: {0}")]
-    SdlError(String),
-}
-
-// For compactness of `.map_err()`
-use ApplicationError::SdlError;
-
-/// Data-compatible MineBombers 3.11 reimplementation
-#[derive(structopt::StructOpt)]
-struct Args {
-    /// Path to the MineBombers 3.11 installation
-    #[structopt(
-        parse(from_os_str),
-        default_value = ".",
-        validator_os = is_valid_installation_directory,
-    )]
-    game_path: PathBuf,
-}
-
-struct MainApp {
-    canvas: WindowCanvas,
-    events: EventPump,
-}
+//const MAP_WIDTH: usize = 64;
+//const MAP_HEIGHT: usize = 45;
 
 pub fn main() -> Result<(), anyhow::Error> {
-    let args: Args = structopt::StructOpt::from_args();
+    let path = args::parse_args();
+    let context = context::ApplicationContext::init(path)?;
+    let app = Application::init(context)?;
+    app.main_loop()?;
+    Ok(())
+}
 
-    let sdl_context = sdl2::init().map_err(SdlError)?;
-    let video = sdl_context.video().map_err(SdlError)?;
-    let window = video
-        .window("MineBombers Reloaded", WIDTH as u32, HEIGHT as u32)
-        .position_centered()
-        .allow_highdpi()
-        .build()?;
-    let canvas = window.into_canvas().build()?;
-    let texture_creator = canvas.texture_creator();
+struct Application {
+    title: Texture,
+    menu: Texture,
+    info: [Texture; 4],
+    codes: Texture,
+    glyphs: Glyphs,
+    context: ApplicationContext,
+}
 
-    let title = std::fs::read(args.game_path.join("titlebe.spy"))?;
-    let image = spy::decode_spy(WIDTH, HEIGHT, &title)?;
-    let mut title = texture_creator.create_texture_static(
-        PixelFormatEnum::RGB24,
-        WIDTH as u32,
-        HEIGHT as u32,
-    )?;
-    title.update(None, &image, WIDTH * 3)?;
+/// Selected item in the main menu
+#[derive(Clone, Copy, PartialEq)]
+#[repr(usize)]
+enum SelectedMenu {
+    NewGame,
+    Options,
+    Info,
+    Quit,
+}
 
-    let mut main = MainApp {
-        canvas,
-        events: sdl_context.event_pump().map_err(SdlError)?,
-    };
+impl SelectedMenu {
+    /// Get menu item that is next to the current one
+    fn next(self) -> SelectedMenu {
+        match self {
+            SelectedMenu::NewGame => SelectedMenu::Options,
+            SelectedMenu::Options => SelectedMenu::Info,
+            SelectedMenu::Info => SelectedMenu::Quit,
+            SelectedMenu::Quit => SelectedMenu::NewGame,
+        }
+    }
 
-    // Capture the image for animation
-    let mut animation = texture_creator.create_texture_target(
-        PixelFormatEnum::RGB24,
-        WIDTH as u32,
-        HEIGHT as u32,
-    )?;
-    main.canvas.with_texture_canvas(&mut animation, |canvas| {
-        canvas.copy(&title, None, None).unwrap();
-    })?;
+    /// Get menu item that is previous to the current one
+    fn prev(self) -> SelectedMenu {
+        self.next().next().next()
+    }
 
-    main.animate(&mut animation, Animation::FadeUp, 7)?;
+    /// Shovel position in the main menu based on the selected item. Should correspond to the main menu texture.
+    fn shovel_pos(self) -> (i32, i32) {
+        (222, 136 + 48 * self as i32)
+    }
+}
 
-    'outer: loop {
-        for event in main.events.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(_), ..
-                } => {
-                    break 'outer;
+impl Application {
+    fn init(context: ApplicationContext) -> Result<Self, anyhow::Error> {
+        Ok(Self {
+            title: context.load_texture("titlebe.spy")?,
+            menu: context.load_texture("main3.spy")?,
+            glyphs: Glyphs::load(&context)?,
+            info: [
+                context.load_texture("info1.spy")?,
+                context.load_texture("info3.spy")?,
+                context.load_texture("shapet.spy")?,
+                context.load_texture("info2.spy")?,
+            ],
+            codes: context.load_texture("codes.spy")?,
+            context,
+        })
+    }
+
+    fn main_loop(mut self) -> Result<(), anyhow::Error> {
+        self.context.render_texture(&self.title)?;
+        self.context.animate(Animation::FadeUp, 7)?;
+        let key = self.context.wait_key_pressed();
+        self.context.animate(Animation::FadeDown, 7)?;
+        if key == Scancode::Escape {
+            return Ok(());
+        }
+
+        loop {
+            if self.main_menu_loop()? {
+                break;
+            }
+
+            // Until we can exit
+            if true {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns `true` if exit was selected
+    fn main_menu_loop(&mut self) -> Result<bool, anyhow::Error> {
+        let mut selected_item = SelectedMenu::NewGame;
+        loop {
+            self.enter_main_menu(selected_item)?;
+            self.main_menu_navigation_loop(&mut selected_item)?;
+            self.context.animate(Animation::FadeDown, 7)?;
+            match selected_item {
+                SelectedMenu::Quit => return Ok(true),
+                SelectedMenu::NewGame => return Ok(false),
+                SelectedMenu::Options => {}
+                SelectedMenu::Info => {
+                    self.info_menu()?;
+                }
+            }
+        }
+    }
+
+    /// Runs navigation inside main menu. Return
+    fn main_menu_navigation_loop(
+        &mut self,
+        selected: &mut SelectedMenu,
+    ) -> Result<(), anyhow::Error> {
+        loop {
+            let key = self.context.wait_key_pressed();
+
+            match key {
+                Scancode::Down | Scancode::Kp2 => {
+                    let next = selected.next();
+                    self.update_shovel(*selected, next)?;
+                    *selected = next;
+                }
+                Scancode::Up | Scancode::Kp8 => {
+                    let prev = selected.prev();
+                    self.update_shovel(*selected, prev)?;
+                    *selected = prev;
+                }
+                Scancode::Escape => {
+                    *selected = SelectedMenu::Quit;
+                    break;
+                }
+                Scancode::Kp3 | Scancode::Return | Scancode::Return2 | Scancode::KpEnter => {
+                    break;
                 }
                 _ => {}
             }
         }
-
-        main.wait_frame();
+        Ok(())
     }
 
-    main.animate(&mut animation, Animation::FadeDown, 7)?;
-    Ok(())
-}
+    /// Display main menu with selected option, plus animation
+    fn enter_main_menu(&mut self, selected: SelectedMenu) -> Result<(), anyhow::Error> {
+        let menu = &self.menu;
+        let glyphs = &self.glyphs;
+        self.context.with_render_context(|canvas| {
+            canvas.copy(menu, None, None).map_err(SdlError)?;
+            // Display registered to?
+            let (x, y) = selected.shovel_pos();
+            glyphs.render(canvas, Glyph::Shovel, x, y)?;
+            Ok(())
+        })?;
+        self.context.animate(Animation::FadeUp, 7)?;
+        Ok(())
+    }
 
-enum Animation {
-    FadeUp,
-    FadeDown,
-}
-
-impl MainApp {
-    fn animate(
+    fn update_shovel(
         &mut self,
-        texture: &mut Texture,
-        animation: Animation,
-        steps: usize,
-    ) -> Result<(), ApplicationError> {
-        // Note that we actually do steps + 1 iteration, as per original behavior
-        // Roughly, we do it for half a second for 8 steps. For 60 FPS, which means ~4 frames per step.
-        let total_frames = (steps + 1) * 4;
+        previous: SelectedMenu,
+        selected: SelectedMenu,
+    ) -> Result<(), anyhow::Error> {
+        let glyphs = &self.glyphs;
+        self.context.with_render_context(|canvas| {
+            let (old_x, old_y) = previous.shovel_pos();
+            let (w, h) = Glyph::Shovel.dimensions();
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            canvas
+                .fill_rect(Rect::new(old_x, old_y, w, h))
+                .map_err(SdlError)?;
+            let (x, y) = selected.shovel_pos();
+            glyphs.render(canvas, Glyph::Shovel, x, y)?;
+            Ok(())
+        })?;
+        self.context.present()?;
+        Ok(())
+    }
 
-        for idx in 0..=total_frames {
-            self.canvas.set_draw_color(Color::RGB(0, 0, 0));
-            self.canvas.clear();
-            let mut alpha = (255 * idx / total_frames) as u8;
-            if let Animation::FadeDown = animation {
-                alpha = 255 - alpha;
+    fn info_menu(&mut self) -> Result<(), anyhow::Error> {
+        let mut key = Scancode::Escape;
+        for info in &self.info {
+            self.context.render_texture(info)?;
+            self.context.animate(Animation::FadeUp, 7)?;
+            key = self.context.wait_key_pressed();
+            self.context.animate(Animation::FadeDown, 7)?;
+            if key == Scancode::Escape {
+                break;
             }
-            texture.set_blend_mode(BlendMode::Blend);
-            texture.set_alpha_mod(alpha);
-            self.canvas.copy(&texture, None, None).map_err(SdlError)?;
-
-            self.events.pump_events();
-            self.canvas.present();
-            self.wait_frame();
+        }
+        if key == Scancode::Tab {
+            self.context.render_texture(&self.codes)?;
+            self.context.animate(Animation::FadeUp, 7)?;
+            self.context.wait_key_pressed();
+            self.context.animate(Animation::FadeDown, 7)?;
         }
         Ok(())
-    }
-
-    fn wait_frame(&self) {
-        // We should wait for the remaining time; for now just do a fixed delay.
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-    }
-}
-
-/// Validate that given path is a valid installation directory.
-fn is_valid_installation_directory(s: &std::ffi::OsStr) -> Result<(), std::ffi::OsString> {
-    let path = Path::new(s);
-    if path.is_dir() && path.join("titlebe.spy").is_file() {
-        Ok(())
-    } else {
-        return Err(format!(
-            "'{}' is not a valid game directory (must be a directory with 'titlebe.spy' file).",
-            path.display()
-        )
-        .into());
     }
 }

@@ -9,11 +9,15 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.31"
 thiserror = "1.0.18"
-sdl2 = "0.34.0"
-structopt = "0.3.14"
+sdl2 = { version = "0.34.0", features = ["unsafe_textures"] }
 
 [workspace]
 members = [
     ".",
     "tools"
 ]
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"

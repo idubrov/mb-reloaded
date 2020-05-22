@@ -1,9 +1,47 @@
 //! Tools to work with SPY files
+use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::render::{Texture, TextureCreator};
+use sdl2::video::WindowContext;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[error("Provided SPY file is not in a valid SPY file format")]
 pub struct InvalidSpyFile;
+
+#[derive(Debug, Error)]
+#[error("Failed to load texture from '{path}'")]
+pub struct TextureLoadingFailed {
+    path: PathBuf,
+    source: anyhow::Error,
+}
+
+/// Load texture at the given path
+pub fn load_texture(
+    texture_creator: &TextureCreator<WindowContext>,
+    path: &Path,
+) -> Result<Texture, TextureLoadingFailed> {
+    load_texture_internal(texture_creator, path).map_err(|source| TextureLoadingFailed {
+        path: path.to_owned(),
+        source,
+    })
+}
+
+fn load_texture_internal(
+    texture_creator: &TextureCreator<WindowContext>,
+    path: &Path,
+) -> Result<Texture, anyhow::Error> {
+    let spy_data = std::fs::read(path)?;
+    let image = crate::spy::decode_spy(SCREEN_WIDTH, SCREEN_HEIGHT, &spy_data)?;
+    let mut texture = texture_creator.create_texture_static(
+        PixelFormatEnum::RGB24,
+        SCREEN_WIDTH as u32,
+        SCREEN_HEIGHT as u32,
+    )?;
+    texture.update(None, &image, SCREEN_WIDTH * 3)?;
+    Ok(texture)
+}
 
 /// Decode SPY file into an RGB image. Image is returned as raw bytes, with 3 bytes per color (red,
 /// green and blue).
