@@ -1,10 +1,17 @@
 //! Tools to work with SPY files
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
-use sdl2::pixels::PixelFormatEnum;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+
+/// SDL texture created from a SPY file with palette.
+pub struct TexturePalette {
+    pub texture: Texture,
+    /// We only load 16 first colors as other part of palette is not used
+    pub palette: [Color; 16],
+}
 
 #[derive(Debug, Error)]
 #[error("Provided SPY file is not in a valid SPY file format")]
@@ -21,7 +28,7 @@ pub struct TextureLoadingFailed {
 pub fn load_texture(
     texture_creator: &TextureCreator<WindowContext>,
     path: &Path,
-) -> Result<Texture, TextureLoadingFailed> {
+) -> Result<TexturePalette, TextureLoadingFailed> {
     load_texture_internal(texture_creator, path).map_err(|source| TextureLoadingFailed {
         path: path.to_owned(),
         source,
@@ -31,16 +38,23 @@ pub fn load_texture(
 fn load_texture_internal(
     texture_creator: &TextureCreator<WindowContext>,
     path: &Path,
-) -> Result<Texture, anyhow::Error> {
+) -> Result<TexturePalette, anyhow::Error> {
     let spy_data = std::fs::read(path)?;
-    let image = crate::spy::decode_spy(SCREEN_WIDTH, SCREEN_HEIGHT, &spy_data)?;
+    let (palette_bytes, image) = decode_spy(SCREEN_WIDTH, SCREEN_HEIGHT, &spy_data)?;
     let mut texture = texture_creator.create_texture_static(
         PixelFormatEnum::RGB24,
         SCREEN_WIDTH as u32,
         SCREEN_HEIGHT as u32,
     )?;
+    let mut palette: [Color; 16] = [Color::BLACK; 16];
+    for color in 0..16 {
+        let r = palette_bytes[color * 3];
+        let g = palette_bytes[color * 3 + 1];
+        let b = palette_bytes[color * 3 + 2];
+        palette[color] = Color::RGB(r, g, b);
+    }
     texture.update(None, &image, SCREEN_WIDTH * 3)?;
-    Ok(texture)
+    Ok(TexturePalette { palette, texture })
 }
 
 /// Decode SPY file into an RGB image. Image is returned as raw bytes, with 3 bytes per color (red,
@@ -50,7 +64,11 @@ fn load_texture_internal(
 /// with run-length encoding. Each bitplane is one bit of image pixel color (4 bitplanes means each
 /// color is 4-bits). Colors are indices into the palette (only first 16 colors of the palette are
 /// used).
-pub fn decode_spy(width: usize, height: usize, data: &[u8]) -> Result<Vec<u8>, InvalidSpyFile> {
+pub fn decode_spy(
+    width: usize,
+    height: usize,
+    data: &[u8],
+) -> Result<(Vec<u8>, Vec<u8>), InvalidSpyFile> {
     // Each bit of a bitplane is a pixel in the output image.
     let bitplane_len = width * height / 8;
 
@@ -85,7 +103,7 @@ pub fn decode_spy(width: usize, height: usize, data: &[u8]) -> Result<Vec<u8>, I
             image.push(palette[color * 3 + 2]);
         }
     }
-    Ok(image)
+    Ok((palette.to_vec(), image))
 }
 
 /// Simple run-length encoding. `1` is interpreted as a run-length instruction. Everything else

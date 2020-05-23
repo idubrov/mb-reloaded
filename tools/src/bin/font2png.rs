@@ -41,20 +41,9 @@ fn main() -> Result<(), anyhow::Error> {
         path: args.input.to_owned(),
         source: source.into(),
     })?;
-
-    if data.len() != 256 * 8 {
-        return Err(ToolError::InvalidFontFile { path: args.input }.into());
-    }
-
-    // Translate glyphs into PNG matrix 16x16
-    let mut image = Vec::with_capacity(256 * 8 * 8);
-    for glyph_row in 0..16 {
-        for line in 0..8 {
-            for glyph_col in 0..16 {
-                image.push(data[(glyph_row * 16 + glyph_col) * 8 + line]);
-            }
-        }
-    }
+    let image = mb_reloaded::fonts::decode_font(&data).map_err(|_| ToolError::InvalidFontFile {
+        path: args.input.to_owned(),
+    })?;
 
     write_image(&args.output, &image).map_err(|source| ToolError::OutputWriteError {
         path: args.output.to_owned(),
@@ -71,8 +60,8 @@ fn write_image(path: &Path, image: &[u8]) -> Result<(), anyhow::Error> {
     let file = File::create(path)?;
     let buf = BufWriter::new(file);
     let mut encoder = png::Encoder::new(buf, 16 * 8, 16 * 8);
-    encoder.set_color(png::ColorType::Grayscale);
-    encoder.set_depth(png::BitDepth::One);
+    encoder.set_color(png::ColorType::RGBA);
+    encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header()?;
     writer.write_image_data(&image)?;
     Ok(())

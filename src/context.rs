@@ -1,4 +1,6 @@
 use crate::error::ApplicationError::SdlError;
+use crate::fonts::Font;
+use crate::spy::TexturePalette;
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
@@ -7,7 +9,7 @@ use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use sdl2::EventPump;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Application environment resources packaged into one structs. Provides helper functions used
@@ -87,9 +89,15 @@ impl ApplicationContext {
     }
 
     /// Load SPY texture from a given path
-    pub fn load_texture(&self, file_name: &str) -> Result<Texture, anyhow::Error> {
+    pub fn load_texture(&self, file_name: &str) -> Result<TexturePalette, anyhow::Error> {
         let path = self.game_dir.join(file_name);
         Ok(crate::spy::load_texture(&self.texture_creator, &path)?)
+    }
+
+    /// Load fonts from a given path
+    pub fn load_font(&self, file_name: &str) -> Result<Font, anyhow::Error> {
+        let path = self.game_dir.join(file_name);
+        Ok(crate::fonts::load_font(&self.texture_creator, &path)?)
     }
 
     pub fn load_music(&self, file_name: &str) -> Result<Music<'static>, anyhow::Error> {
@@ -151,5 +159,9 @@ impl ApplicationContext {
                 _ => {}
             }
         }
+    }
+
+    pub fn game_dir(&self) -> &Path {
+        &self.game_dir
     }
 }

@@ -9,15 +9,22 @@ pub struct Glyphs {
 }
 
 /// Type of the glyph that we want to render
+#[derive(Clone, Copy)]
 pub enum Glyph {
-    Shovel,
+    ShovelPointer,
+    ArrowPointer,
+    RadioOff,
+    RadioOn,
 }
 
 impl Glyph {
     /// Get position of the glyph in the texture; these position should correspond to the texture we use.
-    fn rect(&self) -> Rect {
+    fn rect(self) -> Rect {
         let (left, top, right, bottom) = match self {
-            Glyph::Shovel => (150, 140, 215, 160),
+            Glyph::ShovelPointer => (150, 140, 215, 160),
+            Glyph::ArrowPointer => (205, 99, 231, 109),
+            Glyph::RadioOff => (90, 40, 104, 52),
+            Glyph::RadioOn => (90, 53, 104, 65),
         };
         Rect::new(
             left,
@@ -28,7 +35,7 @@ impl Glyph {
     }
 
     /// Get the dimensions of the glyph (width and height)
-    pub fn dimensions(&self) -> (u32, u32) {
+    pub fn dimensions(self) -> (u32, u32) {
         let rect = self.rect();
         (rect.width(), rect.height())
     }
@@ -38,16 +45,18 @@ impl Glyphs {
     /// Load glyph texture
     pub fn load(context: &ApplicationContext) -> Result<Glyphs, anyhow::Error> {
         let texture = context.load_texture("sika.spy")?;
-        Ok(Self { texture })
+        Ok(Self {
+            texture: texture.texture,
+        })
     }
 
     /// Render given glyph at position
     pub fn render(
         &self,
         canvas: &mut WindowCanvas,
-        glyph: Glyph,
         x: i32,
         y: i32,
+        glyph: Glyph,
     ) -> Result<(), anyhow::Error> {
         let src_rect = glyph.rect();
         let tgt_rect = Rect::new(x, y, src_rect.width(), src_rect.height());
