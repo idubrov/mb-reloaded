@@ -2,7 +2,7 @@ use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::Application;
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -56,7 +56,7 @@ impl Default for Options {
 }
 
 /// Selected item in the main menu
-#[derive(Clone, Copy, PartialEq, PartialOrd, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, IntoPrimitive, TryFromPrimitive)]
 #[repr(usize)]
 enum GameOption {
     Cash,
@@ -79,7 +79,7 @@ impl GameOption {
     /// Get option that is next to the current one
     fn next(self) -> GameOption {
         let pos: usize = self.into();
-        let pos: usize = (pos + 1) % usize::from(GameOption::MainMenu);
+        let pos: usize = (pos + 1) % (usize::from(GameOption::MainMenu) + 1);
         pos.try_into().unwrap()
     }
 
@@ -197,12 +197,40 @@ impl Options {
         }
         opts
     }
+
+    /// Save options into a binary slice
+    fn save(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(17);
+        buf.write_u8(self.players).unwrap();
+        buf.write_u8(self.treasures).unwrap();
+        buf.write_u16::<LittleEndian>(self.rounds).unwrap();
+        buf.write_u16::<LittleEndian>(self.cash).unwrap();
+        buf.write_u32::<LittleEndian>(from_duration(self.round_time))
+            .unwrap();
+        buf.write_u16::<LittleEndian>(self.speed).unwrap();
+        buf.write_u8(self.darkness as u8).unwrap();
+        buf.write_u8(self.free_market as u8).unwrap();
+        buf.write_u8(self.selling as u8).unwrap();
+        if self.win == WinCondition::ByWins {
+            buf.write_u8(1).unwrap();
+        } else {
+            buf.write_u8(0).unwrap();
+        };
+        buf.write_u8(self.bomb_damage as u8).unwrap();
+        assert_eq!(buf.len(), 17);
+        buf
+    }
 }
 
 /// Convert internal representation of time proper duration
 fn to_duration(value: u32) -> Duration {
-    let seconds = (value as u64) * 151 / 2750;
+    let seconds = (value as u64) * 10 / 182;
     Duration::from_secs(seconds)
+}
+
+/// Convert internal representation of time proper duration
+fn from_duration(value: Duration) -> u32 {
+    (value.as_secs() * 182 / 10) as u32
 }
 
 /// Load options from a configuration file. This function uses the same format as the original game.
@@ -220,6 +248,11 @@ impl Application {
         self.render_options_menu(ctx, GameOption::MainMenu)?;
         ctx.animate(Animation::FadeUp, 7)?;
         self.option_menu_navigation_loop(ctx)?;
+
+        // Save options
+        let opts = self.options.save();
+        let path = ctx.game_dir().join("options.cfg");
+        std::fs::write(path, opts)?;
         ctx.animate(Animation::FadeDown, 7)?;
         Ok(())
     }
@@ -242,10 +275,132 @@ impl Application {
                     selected = selected.prev();
                     self.update_pointer(ctx, previous, selected)?;
                 }
-                _ => break,
+                Scancode::Escape => {
+                    break;
+                }
+                Scancode::Kp3 | Scancode::Return | Scancode::Return2 | Scancode::KpEnter
+                    if selected == GameOption::MainMenu =>
+                {
+                    break;
+                }
+                Scancode::Left => {
+                    self.update_value_minus(selected);
+                    ctx.with_render_context(|canvas| {
+                        self.render_option_value(canvas, selected)?;
+                        Ok(())
+                    })?;
+                    ctx.present()?;
+                }
+                Scancode::Right => {
+                    self.update_value_plus(selected);
+                    ctx.with_render_context(|canvas| {
+                        self.render_option_value(canvas, selected)?;
+                        Ok(())
+                    })?;
+                    ctx.present()?;
+                }
+                _ => {}
             }
         }
         Ok(())
+    }
+
+    fn update_value_minus(&mut self, selected: GameOption) {
+        match selected {
+            GameOption::Cash => {
+                if self.options.cash >= 100 {
+                    self.options.cash -= 100;
+                } else {
+                    self.options.cash = 0;
+                }
+            }
+            GameOption::Treasures if self.options.treasures > 0 => {
+                self.options.treasures -= 1;
+            }
+            GameOption::Rounds if self.options.rounds > 1 => {
+                self.options.rounds -= 1;
+            }
+            GameOption::Time => {
+                self.options.round_time = self
+                    .options
+                    .round_time
+                    .checked_sub(Duration::from_secs(15))
+                    .unwrap_or(Duration::from_secs(0));
+            }
+            GameOption::Players if self.options.players > 1 => {
+                self.options.players -= 1;
+            }
+            GameOption::Speed if self.options.speed < 33 => {
+                self.options.speed += 1;
+            }
+            GameOption::BombDamage if self.options.bomb_damage > 0 => {
+                self.options.bomb_damage -= 1;
+            }
+            GameOption::Darkness => {
+                self.options.darkness = !self.options.darkness;
+            }
+            GameOption::FreeMarket => {
+                self.options.free_market = !self.options.free_market;
+            }
+            GameOption::Selling => {
+                self.options.selling = !self.options.selling;
+            }
+            GameOption::Winner if self.options.win == WinCondition::ByWins => {
+                self.options.win = WinCondition::ByMoney;
+            }
+            GameOption::Winner if self.options.win == WinCondition::ByMoney => {
+                self.options.win = WinCondition::ByWins;
+            }
+            _ => {}
+        }
+    }
+
+    fn update_value_plus(&mut self, selected: GameOption) {
+        match selected {
+            GameOption::Cash => {
+                self.options.cash += 100;
+                if self.options.cash > 2650 {
+                    self.options.cash = 2650;
+                }
+            }
+            GameOption::Treasures if self.options.treasures < 75 => {
+                self.options.treasures += 1;
+            }
+            GameOption::Rounds if self.options.rounds < 55 => {
+                self.options.rounds += 1;
+            }
+            GameOption::Time => {
+                self.options.round_time += Duration::from_secs(15);
+                if self.options.round_time > Duration::from_secs(22 * 60 + 40) {
+                    self.options.round_time = Duration::from_secs(22 * 60 + 40)
+                }
+            }
+            GameOption::Players if self.options.players < 4 => {
+                self.options.players += 1;
+            }
+            GameOption::Speed if self.options.speed > 0 => {
+                self.options.speed -= 1;
+            }
+            GameOption::BombDamage if self.options.bomb_damage < 100 => {
+                self.options.bomb_damage += 1;
+            }
+            GameOption::Darkness => {
+                self.options.darkness = !self.options.darkness;
+            }
+            GameOption::FreeMarket => {
+                self.options.free_market = !self.options.free_market;
+            }
+            GameOption::Selling => {
+                self.options.selling = !self.options.selling;
+            }
+            GameOption::Winner if self.options.win == WinCondition::ByWins => {
+                self.options.win = WinCondition::ByMoney;
+            }
+            GameOption::Winner if self.options.win == WinCondition::ByMoney => {
+                self.options.win = WinCondition::ByWins;
+            }
+            _ => {}
+        }
     }
 
     fn render_options_menu(
@@ -269,6 +424,7 @@ impl Application {
         Ok(())
     }
 
+    /// Render value for the given option
     fn render_option_value(
         &self,
         canvas: &mut WindowCanvas,
@@ -302,7 +458,7 @@ impl Application {
             let value = match option {
                 GameOption::Cash => u64::from(self.options.cash) * 165 / 2650,
                 GameOption::Treasures => u64::from(self.options.treasures) * 165 / 75,
-                GameOption::Rounds => u64::from(self.options.rounds) * 55 / 75,
+                GameOption::Rounds => u64::from(self.options.rounds) * 165 / 55,
                 GameOption::Time => self.options.round_time.as_secs() * 165 / 1359,
                 GameOption::Players => (u64::from(self.options.players) - 1) * 55,
                 GameOption::Speed => {
@@ -323,9 +479,10 @@ impl Application {
         let text = match option {
             GameOption::Cash => Some(format!("{}", self.options.cash)),
             GameOption::Treasures => Some(format!("{}", self.options.treasures)),
+            GameOption::Rounds => Some(format!("{}", self.options.rounds)),
             GameOption::Time => {
                 let seconds = self.options.round_time.as_secs();
-                Some(format!("{}:{:02}", seconds / 60, seconds % 60))
+                Some(format!("{}:{:02} min", seconds / 60, seconds % 60))
             }
             GameOption::Players => Some(format!(" {}", self.options.players)),
             GameOption::Speed => Some(format!(" {}%", 100 - 3 * self.options.speed)),
@@ -340,6 +497,7 @@ impl Application {
         Ok(())
     }
 
+    /// Update cursor icon
     fn update_pointer(
         &mut self,
         ctx: &mut ApplicationContext,

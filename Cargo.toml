@@ -24,3 +24,4 @@ members = [
 panic = "abort"
 lto = true
 opt-level = "s"
+codegen-units = 1
