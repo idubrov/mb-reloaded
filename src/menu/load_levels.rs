@@ -6,7 +6,7 @@ use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 // paletted indices
 const SELECTED: usize = 7;
@@ -16,23 +16,21 @@ const UNSELECTED_RANDOM: usize = 4;
 const ACTIVE_SELECTED: usize = 6;
 const ACTIVE_UNSELECTED: usize = 0;
 
+struct LevelInfo {
+    pub name: String,
+    /// If empty, this will be the random level.
+    pub data: Vec<u8>,
+}
+
 struct State {
-    levels: Vec<PathBuf>,
+    levels: Vec<LevelInfo>,
     cursor: usize,
-    /// Length is `levels.len() + 1` as we also track "Random"
-    selected: Vec<bool>,
-    level_pick: Vec<Option<PathBuf>>,
+    level_pick: Vec<usize>,
 }
 
 impl State {
     fn select_current(&mut self) {
-        if self.cursor == 0 {
-            self.level_pick.push(None);
-        } else {
-            self.level_pick
-                .push(Some(self.levels[self.cursor - 1].to_owned()));
-        }
-        self.selected[self.cursor] = true;
+        self.level_pick.push(self.cursor);
     }
 
     fn left(&mut self) {
@@ -61,17 +59,15 @@ impl State {
 
     fn randomize(&mut self, count: usize) {
         self.level_pick.clear();
-        self.selected.truncate(0);
-        self.selected.resize(self.levels.len() + 1, false);
 
-        let mut indices: Vec<usize> = (0..self.levels.len()).collect();
-        while self.level_pick.len() < usize::from(count) {
+        // Don't pick random
+        let mut indices: Vec<usize> = (1..self.levels.len()).collect();
+        while self.level_pick.len() < count {
             let mut rng = rand::thread_rng();
             indices.shuffle(&mut rng);
-            let remaining = usize::from(count) - self.level_pick.len();
+            let remaining = count - self.level_pick.len();
             for index in &indices[..remaining.min(indices.len())] {
-                self.selected[index + 1] = true;
-                self.level_pick.push(Some(self.levels[*index].to_owned()));
+                self.level_pick.push(*index);
             }
         }
     }
@@ -110,12 +106,9 @@ impl Application {
             return Ok(());
         }
 
-        let mut selected = Vec::new();
-        selected.resize(levels.len() + 1, false);
         let state = State {
             levels,
             cursor: 0,
-            selected,
             level_pick: Vec::new(),
         };
 
@@ -130,7 +123,7 @@ impl Application {
         &self,
         ctx: &mut ApplicationContext,
         mut state: State,
-    ) -> Result<Vec<Option<PathBuf>>, anyhow::Error> {
+    ) -> Result<Vec<usize>, anyhow::Error> {
         loop {
             let (scan, _) = ctx.wait_key_pressed();
             let last_cursor = state.cursor;
@@ -153,7 +146,7 @@ impl Application {
 
                     // Refresh the whole menu
                     ctx.with_render_context(|canvas| {
-                        for idx in 0..=state.levels.len() {
+                        for idx in 0..state.levels.len() {
                             self.render_slot(canvas, &state, idx)?;
                         }
                         self.render_selected_count(canvas, state.level_pick.len())?;
@@ -183,13 +176,9 @@ impl Application {
         state: &State,
         position: usize,
     ) -> Result<(), anyhow::Error> {
-        let selected = state.selected[position];
+        let selected = state.level_pick.contains(&position);
         let active = state.cursor == position;
-        let path = if position == 0 {
-            None
-        } else {
-            Some(&state.levels[position - 1])
-        };
+        let level = &state.levels[position];
 
         let column = (position % 8) as i32;
         let row = (position / 8) as i32;
@@ -210,18 +199,15 @@ impl Application {
             (false, true) => ACTIVE_UNSELECTED,
             (true, true) => ACTIVE_SELECTED,
         };
-        let slot;
-        let filename = if let Some(path) = path {
-            slot = path.file_stem().unwrap().to_string_lossy().to_uppercase();
-            &slot
-        } else {
-            "Random"
-        };
-
         let left = (column * 80) as i32;
         let top = (row * 10 + 74) as i32;
-        self.font
-            .render(canvas, left, top, self.levels_menu.palette[color], filename)?;
+        self.font.render(
+            canvas,
+            left,
+            top,
+            self.levels_menu.palette[color],
+            &level.name,
+        )?;
         Ok(())
     }
 
@@ -253,7 +239,7 @@ impl Application {
             canvas
                 .copy(&self.levels_menu.texture, None, None)
                 .map_err(SdlError)?;
-            for idx in 0..=state.levels.len() {
+            for idx in 0..state.levels.len() {
                 self.render_slot(canvas, state, idx)?;
             }
             self.render_selected_count(canvas, state.level_pick.len())?;
@@ -263,16 +249,24 @@ impl Application {
     }
 }
 
-fn find_levels(path: &Path) -> Result<Vec<PathBuf>, anyhow::Error> {
+fn find_levels(path: &Path) -> Result<Vec<LevelInfo>, anyhow::Error> {
     let mut result = Vec::new();
     for entry in path.read_dir()? {
         if let Ok(entry) = entry {
             let path = entry.path();
             if path.is_file() && path.extension().map_or(false, |f| f == "mne" || f == "MNE") {
-                result.push(path.to_owned());
+                let data = std::fs::read(&path)?;
+                if !data.is_empty() {
+                    let name = path.file_stem().unwrap().to_string_lossy().to_uppercase();
+                    result.push(LevelInfo { name, data });
+                }
             }
         }
     }
-    result.sort();
+    result.push(LevelInfo {
+        name: "Random".to_owned(),
+        data: Vec::new(),
+    });
+    result.sort_by_cached_key(|lvl| (!lvl.data.is_empty(), lvl.name.to_owned()));
     Ok(result)
 }
