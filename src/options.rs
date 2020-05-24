@@ -4,7 +4,7 @@ use crate::glyphs::Glyph;
 use crate::Application;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use sdl2::keyboard::Scancode;
+use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
@@ -263,8 +263,8 @@ impl Application {
     ) -> Result<(), anyhow::Error> {
         let mut selected = GameOption::MainMenu;
         loop {
-            let key = ctx.wait_key_pressed();
-            match key {
+            let (scancode, keycode) = ctx.wait_key_pressed();
+            match scancode {
                 Scancode::Down | Scancode::Kp2 => {
                     let previous = selected;
                     selected = selected.next();
@@ -295,6 +295,16 @@ impl Application {
                     self.update_value_plus(selected);
                     ctx.with_render_context(|canvas| {
                         self.render_option_value(canvas, selected)?;
+                        Ok(())
+                    })?;
+                    ctx.present()?;
+                }
+                _ if keycode == Keycode::D => {
+                    self.options = Options::default();
+                    ctx.with_render_context(|canvas| {
+                        for option in &OPTIONS_VALUE {
+                            self.render_option_value(canvas, *option)?;
+                        }
                         Ok(())
                     })?;
                     ctx.present()?;

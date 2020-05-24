@@ -108,9 +108,9 @@ impl Application {
 
         ctx.render_texture(&self.title.texture)?;
         ctx.animate(Animation::FadeUp, 7)?;
-        let key = ctx.wait_key_pressed();
+        let (scancode, _) = ctx.wait_key_pressed();
         ctx.animate(Animation::FadeDown, 7)?;
-        if key == Scancode::Escape {
+        if scancode == Scancode::Escape {
             return Ok(());
         }
 
@@ -153,9 +153,9 @@ impl Application {
         selected: &mut SelectedMenu,
     ) -> Result<(), anyhow::Error> {
         loop {
-            let key = ctx.wait_key_pressed();
+            let (scancode, _keycode) = ctx.wait_key_pressed();
 
-            match key {
+            match scancode {
                 Scancode::Down | Scancode::Kp2 => {
                     let next = selected.next();
                     self.update_shovel(ctx, *selected, next)?;
@@ -225,7 +225,7 @@ impl Application {
         for info in &self.info {
             ctx.render_texture(&info.texture)?;
             ctx.animate(Animation::FadeUp, 7)?;
-            key = ctx.wait_key_pressed();
+            key = ctx.wait_key_pressed().0;
             ctx.animate(Animation::FadeDown, 7)?;
             if key == Scancode::Escape {
                 break;

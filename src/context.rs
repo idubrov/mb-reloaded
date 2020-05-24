@@ -3,7 +3,7 @@ use crate::fonts::Font;
 use crate::spy::TexturePalette;
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use sdl2::event::Event;
-use sdl2::keyboard::Scancode;
+use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::mixer::{Music, AUDIO_S16LSB};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
@@ -147,15 +147,16 @@ impl ApplicationContext {
     }
 
     /// Wait until some key is pressed
-    pub fn wait_key_pressed(&mut self) -> Scancode {
+    pub fn wait_key_pressed(&mut self) -> (Scancode, Keycode) {
         loop {
             let event = self.events.wait_event();
             match event {
-                Event::Quit { .. } => return Scancode::Escape,
+                Event::Quit { .. } => return (Scancode::Escape, Keycode::Escape),
                 Event::KeyDown {
                     scancode: Some(code),
+                    keycode: Some(key),
                     ..
-                } => return code,
+                } => return (code, key),
                 _ => {}
             }
         }
