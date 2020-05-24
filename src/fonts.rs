@@ -1,6 +1,6 @@
+use crate::error::ApplicationError::SdlError;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
-use sdl2::render::TextureValueError::SdlError;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use std::cell::RefCell;

@@ -104,7 +104,7 @@ impl GameOption {
 }
 
 impl Application {
-    pub fn options_menu_loop(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+    pub fn options_menu(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
         loop {
             self.render_options_menu(ctx, GameOption::MainMenu)?;
             ctx.animate(Animation::FadeUp, 7)?;
@@ -112,13 +112,9 @@ impl Application {
             ctx.animate(Animation::FadeDown, 7)?;
 
             match selected {
-                GameOption::LoadLevels => {
-                    unimplemented!();
-                }
-                GameOption::RedefineKeys => self.keys_menu_loop(ctx)?,
-                GameOption::MainMenu => {
-                    break;
-                }
+                GameOption::LoadLevels => self.load_levels(ctx)?,
+                GameOption::RedefineKeys => self.redefine_keys_menu(ctx)?,
+                GameOption::MainMenu => break,
                 // Should never get here
                 _ => {}
             }
@@ -175,9 +171,9 @@ impl Application {
                     })?;
                     ctx.present()?;
                 }
-                Scancode::Return if selected == GameOption::RedefineKeys => {
+                Scancode::Return | Scancode::KpEnter if selected == GameOption::RedefineKeys => {
                     ctx.animate(Animation::FadeDown, 7)?;
-                    self.keys_menu_loop(ctx)?;
+                    self.redefine_keys_menu(ctx)?;
                     ctx.animate(Animation::FadeUp, 7)?;
                 }
                 _ if keycode == Keycode::D => {

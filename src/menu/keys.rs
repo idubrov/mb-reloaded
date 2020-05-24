@@ -9,7 +9,10 @@ use sdl2::render::WindowCanvas;
 use std::convert::TryInto;
 
 impl Application {
-    pub fn keys_menu_loop(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+    pub fn redefine_keys_menu(
+        &mut self,
+        ctx: &mut ApplicationContext,
+    ) -> Result<(), anyhow::Error> {
         ctx.with_render_context(|canvas| {
             canvas
                 .copy(&self.keys.texture, None, None)

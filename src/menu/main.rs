@@ -39,7 +39,7 @@ impl SelectedMenu {
 }
 
 impl Application {
-    pub fn main_loop(mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+    pub fn main_menu(mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
         self.music1.play(-1).map_err(SdlError)?;
 
         ctx.render_texture(&self.title.texture)?;
@@ -69,7 +69,7 @@ impl Application {
             match selected_item {
                 SelectedMenu::Quit => return Ok(true),
                 SelectedMenu::NewGame => return Ok(false),
-                SelectedMenu::Options => self.options_menu_loop(ctx)?,
+                SelectedMenu::Options => self.options_menu(ctx)?,
                 SelectedMenu::Info => {
                     self.info_menu(ctx)?;
                 }

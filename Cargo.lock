@@ -164,6 +164,7 @@ dependencies = [
  "anyhow",
  "mb-reloaded",
  "png",
+ "rand",
  "structopt",
  "thiserror",
 ]

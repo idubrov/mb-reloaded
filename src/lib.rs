@@ -13,11 +13,15 @@ mod error;
 pub mod fonts;
 mod glyphs;
 mod keys;
-mod keys_menu;
-mod main_menu;
 mod options;
-mod options_menu;
 pub mod spy;
+
+mod menu {
+    mod keys;
+    mod load_levels;
+    mod main;
+    mod options;
+}
 
 const SCREEN_WIDTH: usize = 640;
 const SCREEN_HEIGHT: usize = 480;
@@ -31,9 +35,9 @@ pub fn main() -> Result<(), anyhow::Error> {
     let mut app = Application::init(&ctx)?;
     // To skip menus during development
     if std::env::var("DEV").is_ok() {
-        app.keys_menu_loop(&mut ctx)?;
+        app.load_levels(&mut ctx)?;
     } else {
-        app.main_loop(&mut ctx)?;
+        app.main_menu(&mut ctx)?;
     }
     Ok(())
 }
@@ -42,6 +46,7 @@ struct Application {
     title: TexturePalette,
     main_menu: TexturePalette,
     options_menu: TexturePalette,
+    levels_menu: TexturePalette,
     info: [TexturePalette; 4],
     keys: TexturePalette,
     codes: TexturePalette,
@@ -62,6 +67,7 @@ impl Application {
             title: ctx.load_texture("titlebe.spy")?,
             main_menu: ctx.load_texture("main3.spy")?,
             options_menu: ctx.load_texture("options5.spy")?,
+            levels_menu: ctx.load_texture("levselec.spy")?,
             keys: ctx.load_texture("keys.spy")?,
             glyphs: Glyphs::load(&ctx)?,
             font: ctx.load_font("fontti.fon")?,
