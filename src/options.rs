@@ -39,7 +39,7 @@ impl Default for Options {
             darkness: false,
             free_market: false,
             selling: false,
-            win: WinCondition::ByWins,
+            win: WinCondition::ByMoney,
             bomb_damage: 100,
         }
     }
