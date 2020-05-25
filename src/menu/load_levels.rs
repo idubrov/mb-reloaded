@@ -177,9 +177,12 @@ impl Application<'_> {
                                 v.insert(texture)
                             }
                         };
+                        let rect = Rect::new(330, 7, 64, 45);
                         if let Some(preview) = preview {
-                            let rect = Rect::new(330, 7, 64, 45);
                             canvas.copy(preview, None, rect).map_err(SdlError)?;
+                        } else {
+                            canvas.set_draw_color(Color::BLACK);
+                            canvas.fill_rect(rect).map_err(SdlError)?;
                         }
                     }
                     Ok(())
