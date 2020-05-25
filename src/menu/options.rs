@@ -103,7 +103,7 @@ impl GameOption {
     }
 }
 
-impl Application {
+impl Application<'_> {
     pub fn options_menu(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
         loop {
             self.render_options_menu(ctx, GameOption::MainMenu)?;

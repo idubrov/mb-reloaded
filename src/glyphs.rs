@@ -1,11 +1,11 @@
-use crate::context::ApplicationContext;
 use crate::error::ApplicationError::SdlError;
+use crate::spy::TexturePalette;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 
 /// Glyphs is one single texture with all game icons on it.
-pub struct Glyphs {
-    texture: Texture,
+pub struct Glyphs<'t> {
+    texture: Texture<'t>,
 }
 
 /// Type of the glyph that we want to render
@@ -41,13 +41,12 @@ impl Glyph {
     }
 }
 
-impl Glyphs {
+impl<'t> Glyphs<'t> {
     /// Load glyph texture
-    pub fn load(context: &ApplicationContext) -> Result<Glyphs, anyhow::Error> {
-        let texture = context.load_texture("sika.spy")?;
-        Ok(Self {
+    pub fn from_texture(texture: TexturePalette<'t>) -> Glyphs<'t> {
+        Self {
             texture: texture.texture,
-        })
+        }
     }
 
     /// Render given glyph at position

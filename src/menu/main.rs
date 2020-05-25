@@ -38,7 +38,7 @@ impl SelectedMenu {
     }
 }
 
-impl Application {
+impl Application<'_> {
     pub fn main_menu(mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
         self.music1.play(-1).map_err(SdlError)?;
 

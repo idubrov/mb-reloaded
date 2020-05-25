@@ -8,7 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use std::convert::TryInto;
 
-impl Application {
+impl Application<'_> {
     pub fn redefine_keys_menu(
         &mut self,
         ctx: &mut ApplicationContext,

@@ -14,12 +14,12 @@ use std::time::Duration;
 
 /// Application environment resources packaged into one structs. Provides helper functions used
 /// across the whole application.
-pub struct ApplicationContext {
+pub struct ApplicationContext<'canvas, 'textures> {
     game_dir: PathBuf,
-    canvas: WindowCanvas,
     events: EventPump,
-    buffer: Texture,
-    texture_creator: TextureCreator<WindowContext>,
+    canvas: &'canvas mut WindowCanvas,
+    buffer: Texture<'textures>,
+    texture_creator: &'textures TextureCreator<WindowContext>,
 }
 
 pub enum Animation {
@@ -27,8 +27,11 @@ pub enum Animation {
     FadeDown,
 }
 
-impl ApplicationContext {
-    pub fn init(game_dir: PathBuf) -> Result<ApplicationContext, anyhow::Error> {
+impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
+    pub fn with_context(
+        game_dir: PathBuf,
+        cb: impl FnOnce(ApplicationContext) -> Result<(), anyhow::Error>,
+    ) -> Result<(), anyhow::Error> {
         let sdl_context = sdl2::init().map_err(SdlError)?;
         let video = sdl_context.video().map_err(SdlError)?;
         let window = video
@@ -41,7 +44,7 @@ impl ApplicationContext {
             .allow_highdpi()
             .resizable()
             .build()?;
-        let canvas = window.into_canvas().build()?;
+        let mut canvas = window.into_canvas().build()?;
         let events = sdl_context.event_pump().map_err(SdlError)?;
         let texture_creator = canvas.texture_creator();
 
@@ -57,13 +60,15 @@ impl ApplicationContext {
 
         // Initialize audio
         sdl2::mixer::open_audio(48000, AUDIO_S16LSB, 2, 1024).map_err(SdlError)?;
-        Ok(Self {
+        let ctx = ApplicationContext {
             game_dir,
-            canvas,
+            canvas: &mut canvas,
             events,
             buffer,
-            texture_creator,
-        })
+            texture_creator: &texture_creator,
+        };
+        cb(ctx)?;
+        Ok(())
     }
 
     /// Invoke callback in a "rendering" context. Makes canvas to render in a separate buffer
@@ -89,13 +94,16 @@ impl ApplicationContext {
     }
 
     /// Load SPY texture from a given path
-    pub fn load_texture(&self, file_name: &str) -> Result<TexturePalette, anyhow::Error> {
+    pub fn load_texture(
+        &self,
+        file_name: &str,
+    ) -> Result<TexturePalette<'textures>, anyhow::Error> {
         let path = self.game_dir.join(file_name);
         Ok(crate::spy::load_texture(&self.texture_creator, &path)?)
     }
 
     /// Load fonts from a given path
-    pub fn load_font(&self, file_name: &str) -> Result<Font, anyhow::Error> {
+    pub fn load_font(&self, file_name: &str) -> Result<Font<'textures>, anyhow::Error> {
         let path = self.game_dir.join(file_name);
         Ok(crate::fonts::load_font(&self.texture_creator, &path)?)
     }
@@ -164,5 +172,9 @@ impl ApplicationContext {
 
     pub fn game_dir(&self) -> &Path {
         &self.game_dir
+    }
+
+    pub fn texture_creator(&self) -> &'textures TextureCreator<WindowContext> {
+        self.texture_creator
     }
 }

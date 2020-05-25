@@ -1,11 +1,14 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
+use crate::map::MapData;
 use crate::Application;
 use rand::prelude::*;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::WindowCanvas;
+use sdl2::render::{Texture, TextureCreator, WindowCanvas};
+use sdl2::video::WindowContext;
+use std::collections::hash_map::{Entry, HashMap};
 use std::path::Path;
 
 // paletted indices
@@ -16,10 +19,9 @@ const UNSELECTED_RANDOM: usize = 4;
 const ACTIVE_SELECTED: usize = 6;
 const ACTIVE_UNSELECTED: usize = 0;
 
-struct LevelInfo {
-    pub name: String,
-    /// If empty, this will be the random level.
-    pub data: Vec<u8>,
+enum LevelInfo {
+    Random,
+    File { name: String, map: MapData },
 }
 
 struct State {
@@ -73,7 +75,7 @@ impl State {
     }
 }
 
-impl Application {
+impl Application<'_> {
     pub fn load_levels(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
         let mut levels = find_levels(ctx.game_dir())?;
 
@@ -124,6 +126,7 @@ impl Application {
         ctx: &mut ApplicationContext,
         mut state: State,
     ) -> Result<Vec<usize>, anyhow::Error> {
+        let mut previews = HashMap::new();
         loop {
             let (scan, _) = ctx.wait_key_pressed();
             let last_cursor = state.cursor;
@@ -158,10 +161,27 @@ impl Application {
             }
 
             if last_cursor != state.cursor || need_update {
+                let texture_creator = ctx.texture_creator();
                 ctx.with_render_context(|canvas| {
                     self.render_selected_count(canvas, state.level_pick.len())?;
                     self.render_slot(canvas, &state, last_cursor)?;
                     self.render_slot(canvas, &state, state.cursor)?;
+                    if last_cursor != state.cursor {
+                        let preview = match previews.entry(state.cursor) {
+                            Entry::Occupied(v) => v.into_mut(),
+                            Entry::Vacant(v) => {
+                                let texture = self.generate_preview(
+                                    texture_creator,
+                                    &state.levels[state.cursor],
+                                )?;
+                                v.insert(texture)
+                            }
+                        };
+                        if let Some(preview) = preview {
+                            let rect = Rect::new(330, 7, 64, 45);
+                            canvas.copy(preview, None, rect).map_err(SdlError)?;
+                        }
+                    }
                     Ok(())
                 })?;
                 ctx.present()?;
@@ -201,12 +221,16 @@ impl Application {
         };
         let left = (column * 80) as i32;
         let top = (row * 10 + 74) as i32;
+        let level_name = match level {
+            LevelInfo::Random => "Random",
+            LevelInfo::File { ref name, .. } => name,
+        };
         self.font.render(
             canvas,
             left,
             top,
             self.levels_menu.palette[color],
-            &level.name,
+            level_name,
         )?;
         Ok(())
     }
@@ -247,6 +271,19 @@ impl Application {
         })?;
         Ok(())
     }
+
+    fn generate_preview<'t>(
+        &self,
+        texture_creator: &'t TextureCreator<WindowContext>,
+        level: &LevelInfo,
+    ) -> Result<Option<Texture<'t>>, anyhow::Error> {
+        match level {
+            LevelInfo::Random => Ok(None),
+            LevelInfo::File { map, .. } => Ok(Some(
+                map.generate_preview(texture_creator, &self.levels_menu.palette)?,
+            )),
+        }
+    }
 }
 
 fn find_levels(path: &Path) -> Result<Vec<LevelInfo>, anyhow::Error> {
@@ -256,17 +293,17 @@ fn find_levels(path: &Path) -> Result<Vec<LevelInfo>, anyhow::Error> {
             let path = entry.path();
             if path.is_file() && path.extension().map_or(false, |f| f == "mne" || f == "MNE") {
                 let data = std::fs::read(&path)?;
-                if !data.is_empty() {
+                if let Ok(map) = MapData::from_bytes(data) {
                     let name = path.file_stem().unwrap().to_string_lossy().to_uppercase();
-                    result.push(LevelInfo { name, data });
+                    result.push(LevelInfo::File { name, map });
                 }
             }
         }
     }
-    result.push(LevelInfo {
-        name: "Random".to_owned(),
-        data: Vec::new(),
+    result.push(LevelInfo::Random);
+    result.sort_by_cached_key(|v| match v {
+        LevelInfo::Random => (false, String::new()),
+        LevelInfo::File { name, .. } => (true, name.to_owned()),
     });
-    result.sort_by_cached_key(|lvl| (!lvl.data.is_empty(), lvl.name.to_owned()));
     Ok(result)
 }

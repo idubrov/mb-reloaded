@@ -13,6 +13,7 @@ mod error;
 pub mod fonts;
 mod glyphs;
 mod keys;
+mod map;
 mod options;
 pub mod spy;
 
@@ -31,27 +32,29 @@ const SCREEN_HEIGHT: usize = 480;
 
 pub fn main() -> Result<(), anyhow::Error> {
     let path = args::parse_args();
-    let mut ctx = context::ApplicationContext::init(path)?;
-    let mut app = Application::init(&ctx)?;
-    // To skip menus during development
-    if std::env::var("DEV").is_ok() {
-        app.load_levels(&mut ctx)?;
-    } else {
-        app.main_menu(&mut ctx)?;
-    }
+    context::ApplicationContext::with_context(path, |mut ctx| {
+        let mut app = Application::init(&ctx)?;
+        // To skip menus during development
+        if std::env::var("DEV").is_ok() {
+            app.load_levels(&mut ctx)?;
+        } else {
+            app.main_menu(&mut ctx)?;
+        }
+        Ok(())
+    })?;
     Ok(())
 }
 
-struct Application {
-    title: TexturePalette,
-    main_menu: TexturePalette,
-    options_menu: TexturePalette,
-    levels_menu: TexturePalette,
-    info: [TexturePalette; 4],
-    keys: TexturePalette,
-    codes: TexturePalette,
-    glyphs: Glyphs,
-    font: Font,
+struct Application<'t> {
+    title: TexturePalette<'t>,
+    main_menu: TexturePalette<'t>,
+    options_menu: TexturePalette<'t>,
+    levels_menu: TexturePalette<'t>,
+    info: [TexturePalette<'t>; 4],
+    keys: TexturePalette<'t>,
+    codes: TexturePalette<'t>,
+    glyphs: Glyphs<'t>,
+    font: Font<'t>,
     music1: Music<'static>,
     // Position 465 is position of shop music.
     _music2: Music<'static>,
@@ -60,8 +63,8 @@ struct Application {
     player_keys: [Keys; 4],
 }
 
-impl Application {
-    fn init(ctx: &ApplicationContext) -> Result<Self, anyhow::Error> {
+impl<'textures> Application<'textures> {
+    fn init(ctx: &ApplicationContext<'_, 'textures>) -> Result<Self, anyhow::Error> {
         let player_keys = keys::load_keys(ctx.game_dir());
         Ok(Self {
             title: ctx.load_texture("titlebe.spy")?,
@@ -69,7 +72,7 @@ impl Application {
             options_menu: ctx.load_texture("options5.spy")?,
             levels_menu: ctx.load_texture("levselec.spy")?,
             keys: ctx.load_texture("keys.spy")?,
-            glyphs: Glyphs::load(&ctx)?,
+            glyphs: Glyphs::from_texture(ctx.load_texture("sika.spy")?),
             font: ctx.load_font("fontti.fon")?,
             info: [
                 ctx.load_texture("info1.spy")?,

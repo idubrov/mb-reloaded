@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// SDL texture created from a SPY file with palette.
-pub struct TexturePalette {
-    pub texture: Texture,
+pub struct TexturePalette<'t> {
+    pub texture: Texture<'t>,
     /// We only load 16 first colors as other part of palette is not used
     pub palette: [Color; 16],
 }
@@ -25,20 +25,20 @@ pub struct TextureLoadingFailed {
 }
 
 /// Load texture at the given path
-pub fn load_texture(
-    texture_creator: &TextureCreator<WindowContext>,
+pub fn load_texture<'t>(
+    texture_creator: &'t TextureCreator<WindowContext>,
     path: &Path,
-) -> Result<TexturePalette, TextureLoadingFailed> {
+) -> Result<TexturePalette<'t>, TextureLoadingFailed> {
     load_texture_internal(texture_creator, path).map_err(|source| TextureLoadingFailed {
         path: path.to_owned(),
         source,
     })
 }
 
-fn load_texture_internal(
-    texture_creator: &TextureCreator<WindowContext>,
+fn load_texture_internal<'t>(
+    texture_creator: &'t TextureCreator<WindowContext>,
     path: &Path,
-) -> Result<TexturePalette, anyhow::Error> {
+) -> Result<TexturePalette<'t>, anyhow::Error> {
     let spy_data = std::fs::read(path)?;
     let (palette_bytes, image) = decode_spy(SCREEN_WIDTH, SCREEN_HEIGHT, &spy_data)?;
     let mut texture = texture_creator.create_texture_static(

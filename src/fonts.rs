@@ -18,11 +18,11 @@ pub struct FontLoadingFailed {
     source: anyhow::Error,
 }
 
-pub struct Font {
-    texture: RefCell<Texture>,
+pub struct Font<'a> {
+    texture: RefCell<Texture<'a>>,
 }
 
-impl Font {
+impl Font<'_> {
     pub fn render(
         &self,
         canvas: &mut WindowCanvas,
@@ -48,10 +48,10 @@ impl Font {
 }
 
 /// Load font texture
-pub fn load_font(
-    texture_creator: &TextureCreator<WindowContext>,
+pub fn load_font<'t>(
+    texture_creator: &'t TextureCreator<WindowContext>,
     path: &Path,
-) -> Result<Font, FontLoadingFailed> {
+) -> Result<Font<'t>, FontLoadingFailed> {
     let texture =
         load_font_internal(texture_creator, path).map_err(|source| FontLoadingFailed {
             path: path.to_owned(),
@@ -62,10 +62,10 @@ pub fn load_font(
     })
 }
 
-fn load_font_internal(
-    texture_creator: &TextureCreator<WindowContext>,
+fn load_font_internal<'t>(
+    texture_creator: &'t TextureCreator<WindowContext>,
     path: &Path,
-) -> Result<Texture, anyhow::Error> {
+) -> Result<Texture<'t>, anyhow::Error> {
     let data = std::fs::read(path)?;
     let data = decode_font(&data)?;
     let mut texture =
