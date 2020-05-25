@@ -17,9 +17,9 @@ pub fn parse_args() -> PathBuf {
             }
         },
     };
-    if !path.is_dir() || !path.join("titlebe.spy").is_file() {
+    if !path.is_dir() || !path.join("TITLEBE.SPY").is_file() {
         eprintln!(
-            "'{}' is not a valid game directory (must be a directory with 'titlebe.spy' file).",
+            "'{}' is not a valid game directory (must be a directory with 'TITLEBE.SPY' file).",
             path.display()
         );
         std::process::exit(1);

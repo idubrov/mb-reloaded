@@ -13,9 +13,11 @@ mod context;
 mod error;
 pub mod fonts;
 mod glyphs;
+mod identities;
 mod keys;
 mod map;
 mod options;
+mod players;
 pub mod spy;
 
 mod menu {
@@ -23,6 +25,7 @@ mod menu {
     mod load_levels;
     mod main;
     mod options;
+    mod players;
 }
 
 const SCREEN_WIDTH: usize = 640;
@@ -37,7 +40,7 @@ pub fn main() -> Result<(), anyhow::Error> {
         let mut app = Application::init(&ctx)?;
         // To skip menus during development
         if std::env::var("DEV").is_ok() {
-            app.load_levels(&mut ctx)?;
+            app.players_select_menu(&mut ctx)?;
         } else {
             app.main_menu(&mut ctx)?;
         }
@@ -54,6 +57,7 @@ struct Application<'t> {
     info: [TexturePalette<'t>; 4],
     keys: TexturePalette<'t>,
     codes: TexturePalette<'t>,
+    players: TexturePalette<'t>,
     glyphs: Glyphs<'t>,
     font: Font<'t>,
     music1: Music<'static>,
@@ -68,22 +72,23 @@ impl<'textures> Application<'textures> {
     fn init(ctx: &ApplicationContext<'_, 'textures>) -> Result<Self, anyhow::Error> {
         let player_keys = keys::load_keys(ctx.game_dir());
         Ok(Self {
-            title: ctx.load_texture("titlebe.spy")?,
-            main_menu: ctx.load_texture("main3.spy")?,
-            options_menu: ctx.load_texture("options5.spy")?,
-            levels_menu: ctx.load_texture("levselec.spy")?,
-            keys: ctx.load_texture("keys.spy")?,
-            glyphs: Glyphs::from_texture(ctx.load_texture("sika.spy")?),
-            font: ctx.load_font("fontti.fon")?,
+            title: ctx.load_texture("TITLEBE.SPY")?,
+            main_menu: ctx.load_texture("MAIN3.SPY")?,
+            options_menu: ctx.load_texture("OPTIONS5.SPY")?,
+            levels_menu: ctx.load_texture("LEVSELEC.SPY")?,
+            keys: ctx.load_texture("KEYS.SPY")?,
+            glyphs: Glyphs::from_texture(ctx.load_texture("SIKA.SPY")?),
+            font: ctx.load_font("FONTTI.FON")?,
             info: [
-                ctx.load_texture("info1.spy")?,
-                ctx.load_texture("info3.spy")?,
-                ctx.load_texture("shapet.spy")?,
-                ctx.load_texture("info2.spy")?,
+                ctx.load_texture("INFO1.SPY")?,
+                ctx.load_texture("INFO3.SPY")?,
+                ctx.load_texture("SHAPET.SPY")?,
+                ctx.load_texture("INFO2.SPY")?,
             ],
-            codes: ctx.load_texture("codes.spy")?,
-            music1: ctx.load_music("huippe.s3m")?,
-            _music2: ctx.load_music("oeku.s3m")?,
+            codes: ctx.load_texture("CODES.SPY")?,
+            players: ctx.load_texture("IDENTIFW.SPY")?,
+            music1: ctx.load_music("HUIPPE.S3M")?,
+            _music2: ctx.load_music("OEKU.S3M")?,
             options: options::load_options(ctx.game_dir()),
             registered: load_registered(ctx.game_dir()).unwrap_or_else(String::new),
             player_keys,
