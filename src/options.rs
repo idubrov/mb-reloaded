@@ -115,13 +115,15 @@ impl Options {
     }
 }
 
-/// Convert internal representation of time proper duration
+/// Convert internal representation of time proper duration. 18.2 interrupts per second was standard
+/// CMOS realtime clock interrupt frequency.
 fn to_duration(value: u32) -> Duration {
     let seconds = (value as u64) * 10 / 182;
     Duration::from_secs(seconds)
 }
 
-/// Convert internal representation of time proper duration
+/// Convert internal representation of time proper duration. 18.2 interrupts per second was standard
+/// CMOS realtime clock interrupt frequency.
 fn from_duration(value: Duration) -> u32 {
     (value.as_secs() * 182 / 10) as u32
 }

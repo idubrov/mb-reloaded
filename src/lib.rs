@@ -8,6 +8,7 @@ use sdl2::mixer::Music;
 use std::path::Path;
 
 mod args;
+mod audio;
 mod context;
 mod error;
 pub mod fonts;

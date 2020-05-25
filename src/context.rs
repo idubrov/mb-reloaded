@@ -59,7 +59,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
         )?;
 
         // Initialize audio
-        sdl2::mixer::open_audio(48000, AUDIO_S16LSB, 2, 1024).map_err(SdlError)?;
+        sdl2::mixer::open_audio(44100, AUDIO_S16LSB, 2, 1024).map_err(SdlError)?;
         let ctx = ApplicationContext {
             game_dir,
             canvas: &mut canvas,
