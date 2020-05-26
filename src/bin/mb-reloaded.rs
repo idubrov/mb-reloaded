@@ -1,3 +1,3 @@
 fn main() -> Result<(), anyhow::Error> {
-    mb_reloaded::main()
+  mb_reloaded::main()
 }
