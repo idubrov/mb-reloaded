@@ -1,16 +1,19 @@
+//! Player selection menu.
+//!
+//! Note that this screen in particular behaves a bit differently from the original one.
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::identities::Identities;
 use crate::players::{PlayerStats, Players};
 use crate::Application;
-use sdl2::keyboard::Scancode;
+use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 
-//const RIGHT_PANEL_X: i32 = 376;
-//const RIGHT_PANEL_Y: i32 = 22;
+const RIGHT_PANEL_X: i32 = 376;
+const RIGHT_PANEL_Y: i32 = 22;
 const LEFT_PANEL_X: i32 = 44;
 const LEFT_PANEL_Y: i32 = 35;
 
@@ -18,14 +21,19 @@ struct State {
     total_players: u8,
     players: Players,
     identities: Identities,
-    selected_player: u8,
+    active_player: u8,
 }
 
 impl State {
+    /// Return stats for the player with the given index
+    fn stats(&self, idx: u8) -> Option<&PlayerStats> {
+        self.players.players[usize::from(idx)].as_ref()
+    }
+
     fn active_stats(&self) -> Option<&PlayerStats> {
-        if self.selected_player < 4 {
-            if let Some(player) = self.identities.players[usize::from(self.selected_player)] {
-                return Some(&self.players.players[player]);
+        if self.active_player < 4 {
+            if let Some(player) = self.identities.players[usize::from(self.active_player)] {
+                return self.stats(player);
             }
         }
         None
@@ -33,22 +41,39 @@ impl State {
 
     /// Move to the next menu item
     fn next_player(&mut self) {
-        self.selected_player += 1;
-        if self.selected_player > 4 {
-            self.selected_player = 0;
-        } else if self.selected_player != 4 && self.selected_player >= self.total_players {
-            self.selected_player = 4;
+        self.active_player += 1;
+        if self.active_player > 4 {
+            self.active_player = 0;
+        } else if self.active_player != 4 && self.active_player >= self.total_players {
+            self.active_player = 4;
         }
     }
 
     /// Move to the previous menu item
     fn previous_player(&mut self) {
-        if self.selected_player == 0 {
-            self.selected_player = 4;
+        if self.active_player == 0 {
+            self.active_player = 4;
         } else {
-            self.selected_player -= 1;
-            if self.selected_player >= self.total_players {
-                self.selected_player = self.total_players - 1;
+            self.active_player -= 1;
+            if self.active_player >= self.total_players {
+                self.active_player = self.total_players - 1;
+            }
+        }
+    }
+
+    /// Make currently active player slot to use given player identity (if it's not `None`).
+    fn select_player(&mut self, selection: Option<u8>) {
+        if selection.is_some() {
+            self.identities.players[usize::from(self.active_player)] = selection;
+        }
+    }
+
+    /// Delete statistics for the given player index
+    fn delete_stats(&mut self, idx: u8) {
+        self.players.players[usize::from(idx)] = None;
+        for identity in &mut self.identities.players {
+            if *identity == Some(idx) {
+                *identity = None;
             }
         }
     }
@@ -64,13 +89,14 @@ impl Application<'_> {
             players: Players::load_players(ctx.game_dir())?,
             identities: Identities::load_identities(ctx.game_dir()),
             // 4 is "Play button"
-            selected_player: 4,
+            active_player: 4,
         };
         ctx.with_render_context(|canvas| {
             canvas
                 .copy(&self.players.texture, None, None)
                 .map_err(SdlError)?;
             self.render_left_pane(canvas, &state)?;
+            self.render_right_pane(canvas, &state)?;
             Ok(())
         })?;
         ctx.animate(Animation::FadeUp, 7)?;
@@ -79,28 +105,127 @@ impl Application<'_> {
             let (scancode, _keycode) = ctx.wait_key_pressed();
             match scancode {
                 Scancode::Down | Scancode::Kp2 => {
-                    let previous = state.selected_player;
+                    let previous = state.active_player;
                     state.next_player();
                     self.render_selected_player(ctx, previous, &state)?;
                 }
                 Scancode::Up | Scancode::Kp8 => {
-                    let previous = state.selected_player;
+                    let previous = state.active_player;
                     state.previous_player();
                     self.render_selected_player(ctx, previous, &state)?;
                 }
                 Scancode::Escape => {
                     break;
                 }
-                Scancode::Kp3 | Scancode::Return | Scancode::Return2 | Scancode::KpEnter
-                    if state.selected_player == 4 =>
+                Scancode::Kp6
+                | Scancode::Return
+                | Scancode::Return2
+                | Scancode::KpEnter
+                | Scancode::Right
+                    if state.active_player == 4 =>
                 {
                     break;
                 }
+                Scancode::Kp6
+                | Scancode::Return
+                | Scancode::Return2
+                | Scancode::KpEnter
+                | Scancode::Right => {
+                    let selection = self.players_name_select_menu(ctx, &mut state, None)?;
+                    state.select_player(selection);
+
+                    ctx.with_render_context(|canvas| {
+                        self.render_left_pane(canvas, &state)?;
+                        self.render_stats(canvas, state.active_stats())?;
+                        Ok(())
+                    })?;
+                    ctx.present()?;
+                }
+
+                // FIXME: Escape is start the game if all players are selected
+                // FIXME: F10 is exit the game
                 _ => {}
             }
         }
         // FIXME: save players.dat
         ctx.animate(Animation::FadeDown, 7)?;
+        Ok(())
+    }
+
+    fn players_name_select_menu(
+        &self,
+        ctx: &mut ApplicationContext,
+        state: &mut State,
+        mut initial_keycode: Option<Keycode>,
+    ) -> Result<Option<u8>, anyhow::Error> {
+        let current_player = usize::from(state.active_player);
+
+        // If we entered this menu via pressed key, pick empty name slot (or the last one, if no empty slots)
+        if initial_keycode.is_some() && state.identities.players[current_player].is_none() {
+            let player_idx = state.players.players.iter().position(|v| v.is_none());
+            state.identities.players[current_player] = Some(player_idx.unwrap_or(31) as u8);
+        }
+
+        let mut arrow_pos = state.identities.players[current_player].unwrap_or(0);
+        ctx.with_render_context(|canvas| self.render_arrow_pointer(canvas, arrow_pos))?;
+        ctx.present()?;
+
+        let selection = loop {
+            let (scancode, keycode) = initial_keycode
+                .take()
+                .map(|keycode| (Scancode::Application, keycode))
+                .unwrap_or_else(|| ctx.wait_key_pressed());
+            let last_arrow_pos = arrow_pos;
+            match scancode {
+                Scancode::Down | Scancode::Kp2 => {
+                    arrow_pos = (arrow_pos + 1) % 32;
+                }
+                Scancode::Up | Scancode::Kp8 => {
+                    arrow_pos = (arrow_pos + 31) % 32;
+                }
+                Scancode::Left | Scancode::Kp4 => {
+                    // If we have player for the current index configured, pick it
+                    if state.players.players[usize::from(arrow_pos)].is_some() {
+                        break Some(arrow_pos);
+                    } else {
+                        break None;
+                    }
+                }
+                // No selection
+                Scancode::Escape => break None,
+                // Delete currently selected player
+                Scancode::Backspace | Scancode::Delete => {
+                    state.delete_stats(arrow_pos);
+
+                    ctx.with_render_context(|canvas| self.render_right_pane(canvas, state))?;
+                    ctx.present()?;
+                }
+
+                _other => {
+                    self.players_name_enter(ctx)?;
+
+                    // Re-render name.
+                }
+            }
+
+            if last_arrow_pos != arrow_pos {
+                ctx.with_render_context(|canvas| {
+                    self.clear_arrow_pointer(canvas, last_arrow_pos)?;
+                    self.render_arrow_pointer(canvas, arrow_pos)?;
+                    self.render_stats(canvas, state.stats(arrow_pos))?;
+                    Ok(())
+                })?;
+                ctx.present()?;
+            }
+        };
+
+        ctx.with_render_context(|canvas| self.clear_arrow_pointer(canvas, arrow_pos))?;
+        ctx.present()?;
+
+        Ok(selection)
+    }
+
+    fn players_name_enter(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
         Ok(())
     }
 
@@ -119,10 +244,7 @@ impl Application<'_> {
 
         // Original game would also render stats here, but we only render this panel when we enter
         // the menu, so none of the players is selected.
-        let y = i32::from(state.selected_player) * 53 + LEFT_PANEL_Y;
-        self.glyphs
-            .render(canvas, LEFT_PANEL_X, y, Glyph::ShovelPointer)?;
-
+        self.render_shovel_pointer(canvas, state.active_player, state.active_player)?;
         self.render_left_pane_names(canvas, state)?;
         Ok(())
     }
@@ -140,13 +262,37 @@ impl Application<'_> {
                 .map_err(SdlError)?;
             if player < i32::from(self.options.players) {
                 let color = self.players.palette[1];
-                if let Some(idx) = state.identities.players[player as usize] {
-                    let name = &state.players.players[idx].name;
+                if let Some(stats) = state.identities.players[player as usize]
+                    .and_then(|idx| state.players.players[usize::from(idx)].as_ref())
+                {
                     self.font
-                        .render(canvas, 120, player * 53 + 41, color, name)?;
+                        .render(canvas, 120, player * 53 + 41, color, &stats.name)?;
                 }
             }
         }
+        Ok(())
+    }
+
+    fn render_right_pane(
+        &self,
+        canvas: &mut WindowCanvas,
+        state: &State,
+    ) -> Result<(), anyhow::Error> {
+        canvas.set_draw_color(Color::BLACK);
+        let rect = Rect::new(RIGHT_PANEL_X + 2, RIGHT_PANEL_Y + 1, 198, 256);
+        canvas.fill_rect(rect).map_err(SdlError)?;
+
+        let palette = &self.players.palette;
+        for idx in 0..32 {
+            let x = RIGHT_PANEL_X + 2;
+            let y = RIGHT_PANEL_Y + (idx as i32) * 8 + 1;
+            if let Some(ref player) = state.players.players[idx] {
+                self.font.render(canvas, x, y, palette[1], &player.name)?;
+            } else {
+                self.font.render(canvas, x, y, palette[3], "-")?;
+            }
+        }
+
         Ok(())
     }
 
@@ -158,7 +304,7 @@ impl Application<'_> {
         state: &State,
     ) -> Result<(), anyhow::Error> {
         ctx.with_render_context(|canvas| {
-            self.render_shovel_pointer(canvas, previous, state.selected_player)?;
+            self.render_shovel_pointer(canvas, previous, state.active_player)?;
             self.render_stats(canvas, state.active_stats())?;
             Ok(())
         })?;
@@ -194,7 +340,7 @@ impl Application<'_> {
         canvas: &mut WindowCanvas,
         stats: Option<&PlayerStats>,
     ) -> Result<(), anyhow::Error> {
-        let white_color = self.players.palette[1];
+        let white = self.players.palette[1];
         let red_color = self.players.palette[3];
 
         canvas.set_draw_color(Color::BLACK);
@@ -232,12 +378,12 @@ impl Application<'_> {
         {
             let idx = idx as i32;
             self.font
-                .render(canvas, 65, 330 + 72 * idx, white_color, &total.to_string())?;
+                .render(canvas, 65, 330 + 72 * idx, white, &total.to_string())?;
             self.font
-                .render(canvas, 65, 354 + 72 * idx, white_color, &wins.to_string())?;
+                .render(canvas, 65, 354 + 72 * idx, white, &wins.to_string())?;
             if total != 0 {
                 let width = 1 + (94 * wins) / total;
-                canvas.set_draw_color(white_color);
+                canvas.set_draw_color(white);
                 canvas
                     .fill_rect(Rect::new(64, 376 + 72 * idx, width, 10))
                     .map_err(SdlError)?;
@@ -257,34 +403,19 @@ impl Application<'_> {
             canvas,
             211,
             330,
-            white_color,
+            white,
             &stats.treasures_collected.to_string(),
         )?;
-        self.font.render(
-            canvas,
-            211,
-            354,
-            white_color,
-            &stats.total_money.to_string(),
-        )?;
-        self.font.render(
-            canvas,
-            211,
-            378,
-            white_color,
-            &stats.bombs_bought.to_string(),
-        )?;
-        self.font.render(
-            canvas,
-            211,
-            402,
-            white_color,
-            &stats.bombs_dropped.to_string(),
-        )?;
         self.font
-            .render(canvas, 211, 426, white_color, &stats.deaths.to_string())?;
+            .render(canvas, 211, 354, white, &stats.total_money.to_string())?;
         self.font
-            .render(canvas, 211, 450, white_color, &stats.meters_ran.to_string())?;
+            .render(canvas, 211, 378, white, &stats.bombs_bought.to_string())?;
+        self.font
+            .render(canvas, 211, 402, white, &stats.bombs_dropped.to_string())?;
+        self.font
+            .render(canvas, 211, 426, white, &stats.deaths.to_string())?;
+        self.font
+            .render(canvas, 211, 450, white, &stats.meters_ran.to_string())?;
 
         let mut offset = (stats.tournaments as usize) % 34;
         let mut last_x = 367;
@@ -294,7 +425,7 @@ impl Application<'_> {
             offset = (offset + 1) % 34;
             let value = stats.history[offset];
             let y = 457 - i32::from(value);
-            let color = match (value * 4 + 67) / 134 {
+            let color = match (u16::from(value) * 4 + 67) / 134 {
                 0 => palette[3],
                 1 => palette[7],
                 2 => palette[6],
@@ -312,6 +443,33 @@ impl Application<'_> {
             last_x += 6;
             last_y = y;
         }
+        Ok(())
+    }
+
+    /// Update rendering of the arrow pointer in the right panel
+    fn clear_arrow_pointer(
+        &self,
+        canvas: &mut WindowCanvas,
+        position: u8,
+    ) -> Result<(), anyhow::Error> {
+        let old_y = i32::from(position) * 8 + RIGHT_PANEL_Y;
+        let (w, h) = Glyph::ArrowPointer.dimensions();
+        canvas.set_draw_color(Color::BLACK);
+        canvas
+            .fill_rect(Rect::new(RIGHT_PANEL_X - 37, old_y, w, h))
+            .map_err(SdlError)?;
+        Ok(())
+    }
+
+    /// Update rendering of the arrow pointer in the right panel
+    fn render_arrow_pointer(
+        &self,
+        canvas: &mut WindowCanvas,
+        position: u8,
+    ) -> Result<(), anyhow::Error> {
+        let y = i32::from(position) * 8 + RIGHT_PANEL_Y;
+        self.glyphs
+            .render(canvas, RIGHT_PANEL_X - 37, y, Glyph::ArrowPointer)?;
         Ok(())
     }
 }

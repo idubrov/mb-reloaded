@@ -139,10 +139,10 @@ impl Application<'_> {
                     state.select_current();
                     need_update = true;
                 }
-                Scancode::Left => state.left(),
-                Scancode::Up => state.up(),
-                Scancode::Right => state.right(),
-                Scancode::Down => state.down(),
+                Scancode::Left | Scancode::Kp4 => state.left(),
+                Scancode::Up | Scancode::Kp8 => state.up(),
+                Scancode::Right | Scancode::Kp6 => state.right(),
+                Scancode::Down | Scancode::Kp2 => state.down(),
 
                 Scancode::F1 => {
                     state.randomize(usize::from(self.options.rounds));

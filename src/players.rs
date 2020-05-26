@@ -29,7 +29,7 @@ pub struct PlayerStats {
 
 #[derive(Default)]
 pub struct Players {
-    pub players: Box<[PlayerStats; 32]>,
+    pub players: Box<[Option<PlayerStats>; 32]>,
 }
 
 impl Players {
@@ -48,11 +48,13 @@ impl Players {
         }
 
         for player in 0..32 {
-            let record = &mut players.players[player];
             // Each record is 101 byte long
             let data = &data[player * 101..][..101];
+
             // `0` indicates an active record (non-zero is an empty record).
             if data[0] == 0 {
+                let record = &mut players.players[player].get_or_insert_with(Default::default);
+
                 let len = usize::from(data[1].min(24));
                 record.name = String::from_utf8_lossy(&data[2..2 + len]).into_owned();
 
