@@ -27,6 +27,14 @@ pub enum Animation {
   FadeDown,
 }
 
+/// Our representation of an input event. Most of the time, we only care about scancodes. However,
+/// when we allow entering a text (player creation screen), we need to be able to represent input
+/// text as well.
+pub enum InputEvent {
+  KeyPress(Scancode, Keycode),
+  TextInput(String),
+}
+
 impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   pub fn with_context(
     game_dir: PathBuf,
@@ -127,7 +135,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   }
 
   pub fn present(&mut self) -> Result<(), anyhow::Error> {
-    self.buffer.set_blend_mode(BlendMode::Blend);
+    self.buffer.set_blend_mode(BlendMode::None);
     self.buffer.set_alpha_mod(255);
     self.canvas.copy(&self.buffer, None, None).map_err(SdlError)?;
     self.canvas.present();
@@ -140,17 +148,29 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   }
 
   /// Wait until some key is pressed
-  pub fn wait_key_pressed(&mut self) -> (Scancode, Keycode) {
+  pub fn wait_input_event(&mut self) -> InputEvent {
     loop {
       let event = self.events.wait_event();
       match event {
-        Event::Quit { .. } => return (Scancode::Escape, Keycode::Escape),
+        // FIXME: proper event
+        Event::Quit { .. } => return InputEvent::KeyPress(Scancode::Escape, Keycode::Escape),
         Event::KeyDown {
           scancode: Some(code),
           keycode: Some(key),
           ..
-        } => return (code, key),
+        } => return InputEvent::KeyPress(code, key),
+        Event::TextInput { text, .. } => return InputEvent::TextInput(text),
         _ => {}
+      }
+    }
+  }
+
+  /// Wait until some key is pressed. This is a simpler interface for cases where we don't expect
+  /// text input (most of the time, we don't)
+  pub fn wait_key_pressed(&mut self) -> (Scancode, Keycode) {
+    loop {
+      if let InputEvent::KeyPress(scan, key) = self.wait_input_event() {
+        return (scan, key);
       }
     }
   }

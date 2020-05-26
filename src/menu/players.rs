@@ -1,13 +1,13 @@
 //! Player selection menu.
 //!
 //! Note that this screen in particular behaves a bit differently from the original one.
-use crate::context::{Animation, ApplicationContext};
+use crate::context::{Animation, ApplicationContext, InputEvent};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::identities::Identities;
 use crate::players::{PlayerStats, Players};
 use crate::Application;
-use sdl2::keyboard::{Keycode, Scancode};
+use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
@@ -77,10 +77,21 @@ impl State {
       }
     }
   }
+
+  /// `true` if all players were selected
+  fn all_selected(&mut self) -> bool {
+    self
+      .identities
+      .players
+      .iter()
+      .take(usize::from(self.total_players))
+      .all(Option::is_some)
+  }
 }
 
 impl Application<'_> {
-  pub fn players_select_menu(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  /// Returns `true` if exit was selected instead of play (via F10).
+  pub fn players_select_menu(&mut self, ctx: &mut ApplicationContext) -> Result<bool, anyhow::Error> {
     let mut state = State {
       total_players: self.options.players,
       players: Players::load_players(ctx.game_dir())?,
@@ -90,65 +101,76 @@ impl Application<'_> {
     };
     ctx.with_render_context(|canvas| {
       canvas.copy(&self.players.texture, None, None).map_err(SdlError)?;
-      self.render_left_pane(canvas, &state)?;
+      self.render_left_pane(canvas, &state, state.active_player)?;
       self.render_right_pane(canvas, &state)?;
       Ok(())
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
 
-    loop {
-      let (scancode, _keycode) = ctx.wait_key_pressed();
-      match scancode {
-        Scancode::Down | Scancode::Kp2 => {
-          let previous = state.active_player;
-          state.next_player();
-          self.render_selected_player(ctx, previous, &state)?;
-        }
-        Scancode::Up | Scancode::Kp8 => {
-          let previous = state.active_player;
-          state.previous_player();
-          self.render_selected_player(ctx, previous, &state)?;
-        }
-        Scancode::Escape => {
-          break;
-        }
-        Scancode::Kp6 | Scancode::Return | Scancode::Return2 | Scancode::KpEnter | Scancode::Right
-          if state.active_player == 4 =>
-        {
-          break;
-        }
-        Scancode::Kp6 | Scancode::Return | Scancode::Return2 | Scancode::KpEnter | Scancode::Right => {
-          let selection = self.players_name_select_menu(ctx, &mut state, None)?;
+    let exit = loop {
+      let last_active_player = state.active_player;
+
+      match ctx.wait_input_event() {
+        InputEvent::TextInput(text) if state.active_player != 4 => {
+          // Special case: when typing text over a player, immediately create a new player in the
+          // roster and start editing it.
+          let selection = self.players_name_select_menu(ctx, &mut state, Some(text))?;
           state.select_player(selection);
-
-          ctx.with_render_context(|canvas| {
-            self.render_left_pane(canvas, &state)?;
-            self.render_stats(canvas, state.active_stats())?;
-            Ok(())
-          })?;
-          ctx.present()?;
         }
+        InputEvent::TextInput(_) => continue,
+        InputEvent::KeyPress(scancode, _keycode) => match scancode {
+          Scancode::Down | Scancode::Kp2 => state.next_player(),
+          Scancode::Up | Scancode::Kp8 => state.previous_player(),
+          Scancode::Escape => {
+            // Check that all players were selected
+            if state.all_selected() {
+              break false;
+            }
+          }
+          Scancode::Kp6 | Scancode::Return | Scancode::Return2 | Scancode::KpEnter | Scancode::Right
+            if state.active_player == 4 =>
+          {
+            if state.all_selected() {
+              break false;
+            }
+          }
+          Scancode::F10 => {
+            break true;
+          }
+          Scancode::Kp6 | Scancode::Return | Scancode::Return2 | Scancode::KpEnter | Scancode::Right => {
+            let selection = self.players_name_select_menu(ctx, &mut state, None)?;
+            state.select_player(selection);
+          }
 
-        // FIXME: Escape is start the game if all players are selected
-        // FIXME: F10 is exit the game
-        _ => {}
-      }
-    }
+          _ => {
+            // Skip re-rendering nothing changed.
+            continue;
+          }
+        },
+      };
+
+      ctx.with_render_context(|canvas| {
+        self.render_left_pane(canvas, &state, last_active_player)?;
+        Ok(())
+      })?;
+      ctx.present()?;
+    };
     // FIXME: save players.dat
+    // FIXME: save identify.dat
     ctx.animate(Animation::FadeDown, 7)?;
-    Ok(())
+    Ok(exit)
   }
 
   fn players_name_select_menu(
     &self,
     ctx: &mut ApplicationContext,
     state: &mut State,
-    mut initial_keycode: Option<Keycode>,
+    mut initial_input: Option<String>,
   ) -> Result<Option<u8>, anyhow::Error> {
     let current_player = usize::from(state.active_player);
 
-    // If we entered this menu via pressed key, pick empty name slot (or the last one, if no empty slots)
-    if initial_keycode.is_some() && state.identities.players[current_player].is_none() {
+    // If we entered this menu via pressed key, pick an empty name slot
+    if initial_input.is_some() {
       let player_idx = state.players.players.iter().position(|v| v.is_none());
       state.identities.players[current_player] = Some(player_idx.unwrap_or(31) as u8);
     }
@@ -158,10 +180,18 @@ impl Application<'_> {
     ctx.present()?;
 
     let selection = loop {
-      let (scancode, keycode) = initial_keycode
+      let scancode = match initial_input
         .take()
-        .map(|keycode| (Scancode::Application, keycode))
-        .unwrap_or_else(|| ctx.wait_key_pressed());
+        .map(InputEvent::TextInput)
+        .unwrap_or_else(|| ctx.wait_input_event())
+      {
+        InputEvent::KeyPress(scancode, _keycode) => scancode,
+        InputEvent::TextInput(text) => {
+          self.edit_new_player_name(ctx, state, arrow_pos, Some(text))?;
+          continue;
+        }
+      };
+
       let last_arrow_pos = arrow_pos;
       match scancode {
         Scancode::Down | Scancode::Kp2 => {
@@ -172,27 +202,27 @@ impl Application<'_> {
         }
         Scancode::Left | Scancode::Kp4 => {
           // If we have player for the current index configured, pick it
-          if state.players.players[usize::from(arrow_pos)].is_some() {
+          if state.stats(arrow_pos).is_some() {
             break Some(arrow_pos);
           } else {
             break None;
           }
         }
         // No selection
-        Scancode::Escape => break None,
+        // FIXME: on F10, should exit from player selection screen
+        Scancode::Escape | Scancode::F10 => break None,
         // Delete currently selected player
         Scancode::Backspace | Scancode::Delete => {
           state.delete_stats(arrow_pos);
-
           ctx.with_render_context(|canvas| self.render_right_pane(canvas, state))?;
           ctx.present()?;
         }
 
-        _other => {
-          self.players_name_enter(ctx)?;
-
-          // Re-render name.
+        Scancode::Return | Scancode::KpEnter | Scancode::Return2 => {
+          self.edit_new_player_name(ctx, state, arrow_pos, None)?;
         }
+
+        _ => {}
       }
 
       if last_arrow_pos != arrow_pos {
@@ -212,11 +242,93 @@ impl Application<'_> {
     Ok(selection)
   }
 
-  fn players_name_enter(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  /// Menu loop for editing characters in a new player name.
+  fn edit_new_player_name(
+    &self,
+    ctx: &mut ApplicationContext,
+    state: &mut State,
+    player_idx: u8,
+    mut first: Option<String>,
+  ) -> Result<(), anyhow::Error> {
+    let x = RIGHT_PANEL_X + 2;
+    let y = RIGHT_PANEL_Y + (player_idx as i32) * 8 + 1;
+
+    // Initial edit line
+    ctx.with_render_context(|canvas| {
+      canvas.set_draw_color(Color::BLACK);
+      let rect = Rect::new(x, y, 192, 8);
+      canvas.fill_rect(rect).map_err(SdlError)?;
+      canvas.set_draw_color(self.players.palette[8]);
+      let rect = Rect::new(x + 1, y + 6, 8, 2);
+      canvas.fill_rect(rect).map_err(SdlError)?;
+      Ok(())
+    })?;
+
+    let mut name = String::new();
+    loop {
+      match first
+        .take()
+        .map(InputEvent::TextInput)
+        .unwrap_or_else(|| ctx.wait_input_event())
+      {
+        InputEvent::KeyPress(scancode, _) => match scancode {
+          Scancode::Return | Scancode::Return2 | Scancode::KpEnter | Scancode::Escape => {
+            // We are done -- exit the loop
+            break;
+          }
+          Scancode::Delete | Scancode::Backspace => {
+            if !name.is_empty() {
+              name.truncate(name.len() - 1);
+            }
+          }
+          _ => continue,
+        },
+        InputEvent::TextInput(text) => {
+          for ch in text.chars() {
+            if ch.is_ascii() {
+              name.push(ch);
+            }
+          }
+          if name.len() > 24 {
+            name.truncate(24);
+          }
+        }
+      }
+
+      // Re-render the name and the cursor
+      ctx.with_render_context(|canvas| {
+        canvas.set_draw_color(Color::BLACK);
+        let rect = Rect::new(x, y, 193, 8);
+        canvas.fill_rect(rect).map_err(SdlError)?;
+        self.font.render(canvas, x, y, self.players.palette[1], &name)?;
+
+        if name.len() < 24 {
+          canvas.set_draw_color(self.players.palette[8]);
+          let rect = Rect::new(x + 1 + 8 * (name.len() as i32), y + 6, 8, 2);
+          canvas.fill_rect(rect).map_err(SdlError)?;
+        }
+
+        Ok(())
+      })?;
+      ctx.present()?;
+    }
+
+    let mut new_player = PlayerStats::default();
+    new_player.name = name;
+    state.players.players[usize::from(player_idx)] = Some(new_player);
+
+    // Refresh names panel
+    ctx.with_render_context(|canvas| self.render_right_pane(canvas, state))?;
+    ctx.present()?;
     Ok(())
   }
 
-  fn render_left_pane(&self, canvas: &mut WindowCanvas, state: &State) -> Result<(), anyhow::Error> {
+  fn render_left_pane(
+    &self,
+    canvas: &mut WindowCanvas,
+    state: &State,
+    last_active_player: u8,
+  ) -> Result<(), anyhow::Error> {
     // Erase panels for unused players
     let cnt = i32::from(self.options.players);
     canvas.set_draw_color(Color::BLACK);
@@ -225,10 +337,9 @@ impl Application<'_> {
       canvas.fill_rect(rect).map_err(SdlError)?;
     }
 
-    // Original game would also render stats here, but we only render this panel when we enter
-    // the menu, so none of the players is selected.
-    self.render_shovel_pointer(canvas, state.active_player, state.active_player)?;
+    self.render_shovel_pointer(canvas, last_active_player, state.active_player)?;
     self.render_left_pane_names(canvas, state)?;
+    self.render_stats(canvas, state.active_stats())?;
     Ok(())
   }
 
@@ -270,31 +381,17 @@ impl Application<'_> {
     Ok(())
   }
 
-  /// Render update to a selected player in the left panel and also in the stats
-  fn render_selected_player(
-    &self,
-    ctx: &mut ApplicationContext,
-    previous: u8,
-    state: &State,
-  ) -> Result<(), anyhow::Error> {
-    ctx.with_render_context(|canvas| {
-      self.render_shovel_pointer(canvas, previous, state.active_player)?;
-      self.render_stats(canvas, state.active_stats())?;
-      Ok(())
-    })?;
-    ctx.present()?;
-    Ok(())
-  }
-
   /// Update rendering of the shovel pointer
   fn render_shovel_pointer(&self, canvas: &mut WindowCanvas, previous: u8, current: u8) -> Result<(), anyhow::Error> {
-    // Erase old pointer
-    let old_y = i32::from(previous) * 53 + LEFT_PANEL_Y;
-    let (w, h) = Glyph::ShovelPointer.dimensions();
-    canvas.set_draw_color(Color::BLACK);
-    canvas
-      .fill_rect(Rect::new(LEFT_PANEL_X, old_y, w, h))
-      .map_err(SdlError)?;
+    if previous != current {
+      // Erase old pointer
+      let old_y = i32::from(previous) * 53 + LEFT_PANEL_Y;
+      let (w, h) = Glyph::ShovelPointer.dimensions();
+      canvas.set_draw_color(Color::BLACK);
+      canvas
+        .fill_rect(Rect::new(LEFT_PANEL_X, old_y, w, h))
+        .map_err(SdlError)?;
+    }
 
     // Render the new pointer
     let y = i32::from(current) * 53 + LEFT_PANEL_Y;

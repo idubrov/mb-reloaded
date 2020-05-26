@@ -11,7 +11,6 @@ pub struct StatsError {
   path: PathBuf,
 }
 
-#[derive(Default)]
 pub struct PlayerStats {
   pub name: String,
   pub tournaments: u32,
@@ -25,6 +24,25 @@ pub struct PlayerStats {
   pub deaths: u32,
   pub meters_ran: u32,
   pub history: Vec<u8>,
+}
+
+impl Default for PlayerStats {
+  fn default() -> Self {
+    Self {
+      name: String::new(),
+      tournaments: 0,
+      tournaments_wins: 0,
+      rounds: 0,
+      rounds_wins: 0,
+      treasures_collected: 0,
+      total_money: 0,
+      bombs_bought: 0,
+      bombs_dropped: 0,
+      deaths: 0,
+      meters_ran: 0,
+      history: vec![0; 34],
+    }
+  }
 }
 
 #[derive(Default)]
