@@ -158,17 +158,7 @@ impl Application<'_> {
         state: &State,
     ) -> Result<(), anyhow::Error> {
         ctx.with_render_context(|canvas| {
-            let old_y = i32::from(previous) * 53 + LEFT_PANEL_Y;
-            let (w, h) = Glyph::ShovelPointer.dimensions();
-            canvas.set_draw_color(Color::BLACK);
-            canvas
-                .fill_rect(Rect::new(LEFT_PANEL_X, old_y, w, h))
-                .map_err(SdlError)?;
-
-            let y = i32::from(state.selected_player) * 53 + LEFT_PANEL_Y;
-            self.glyphs
-                .render(canvas, LEFT_PANEL_X, y, Glyph::ShovelPointer)?;
-
+            self.render_shovel_pointer(canvas, previous, state.selected_player)?;
             self.render_stats(canvas, state.active_stats())?;
             Ok(())
         })?;
@@ -176,11 +166,37 @@ impl Application<'_> {
         Ok(())
     }
 
+    /// Update rendering of the shovel pointer
+    fn render_shovel_pointer(
+        &self,
+        canvas: &mut WindowCanvas,
+        previous: u8,
+        current: u8,
+    ) -> Result<(), anyhow::Error> {
+        // Erase old pointer
+        let old_y = i32::from(previous) * 53 + LEFT_PANEL_Y;
+        let (w, h) = Glyph::ShovelPointer.dimensions();
+        canvas.set_draw_color(Color::BLACK);
+        canvas
+            .fill_rect(Rect::new(LEFT_PANEL_X, old_y, w, h))
+            .map_err(SdlError)?;
+
+        // Render the new pointer
+        let y = i32::from(current) * 53 + LEFT_PANEL_Y;
+        self.glyphs
+            .render(canvas, LEFT_PANEL_X, y, Glyph::ShovelPointer)?;
+        Ok(())
+    }
+
+    /// Render player statistics
     fn render_stats(
         &self,
         canvas: &mut WindowCanvas,
         stats: Option<&PlayerStats>,
     ) -> Result<(), anyhow::Error> {
+        let white_color = self.players.palette[1];
+        let red_color = self.players.palette[3];
+
         canvas.set_draw_color(Color::BLACK);
 
         // Individual stats indicators
@@ -194,19 +210,108 @@ impl Application<'_> {
             }
         }
 
-        // Player history
+        // Player past history
         canvas
             .fill_rect(Rect::new(367, 328, 198, 130))
             .map_err(SdlError)?;
 
-        let _stats = if let Some(stats) = stats {
+        let stats = if let Some(stats) = stats {
             stats
         } else {
             return Ok(());
         };
 
-        // FIXME: render stats
+        // Tournaments and rounds
+        for (idx, (total, wins)) in [
+            (stats.tournaments, stats.tournaments_wins),
+            (stats.rounds, stats.rounds_wins),
+        ]
+        .iter()
+        .copied()
+        .enumerate()
+        {
+            let idx = idx as i32;
+            self.font
+                .render(canvas, 65, 330 + 72 * idx, white_color, &total.to_string())?;
+            self.font
+                .render(canvas, 65, 354 + 72 * idx, white_color, &wins.to_string())?;
+            if total != 0 {
+                let width = 1 + (94 * wins) / total;
+                canvas.set_draw_color(white_color);
+                canvas
+                    .fill_rect(Rect::new(64, 376 + 72 * idx, width, 10))
+                    .map_err(SdlError)?;
 
+                let percentage = (200 * wins + total) / total / 2;
+                self.font.render(
+                    canvas,
+                    65,
+                    378 + 72 * idx,
+                    red_color,
+                    &format!("{}%", percentage),
+                )?;
+            }
+        }
+
+        self.font.render(
+            canvas,
+            211,
+            330,
+            white_color,
+            &stats.treasures_collected.to_string(),
+        )?;
+        self.font.render(
+            canvas,
+            211,
+            354,
+            white_color,
+            &stats.total_money.to_string(),
+        )?;
+        self.font.render(
+            canvas,
+            211,
+            378,
+            white_color,
+            &stats.bombs_bought.to_string(),
+        )?;
+        self.font.render(
+            canvas,
+            211,
+            402,
+            white_color,
+            &stats.bombs_dropped.to_string(),
+        )?;
+        self.font
+            .render(canvas, 211, 426, white_color, &stats.deaths.to_string())?;
+        self.font
+            .render(canvas, 211, 450, white_color, &stats.meters_ran.to_string())?;
+
+        let mut offset = (stats.tournaments as usize) % 34;
+        let mut last_x = 367;
+        let mut last_y = 457 - i32::from(stats.history[offset]);
+        let palette = &self.players.palette;
+        for _ in 1..34 {
+            offset = (offset + 1) % 34;
+            let value = stats.history[offset];
+            let y = 457 - i32::from(value);
+            let color = match (value * 4 + 67) / 134 {
+                0 => palette[3],
+                1 => palette[7],
+                2 => palette[6],
+                3 => palette[5],
+                _ => palette[4],
+            };
+            canvas.set_draw_color(color);
+            canvas
+                .draw_line((last_x, last_y), (last_x + 5, y))
+                .map_err(SdlError)?;
+            canvas
+                .draw_line((last_x + 5, y), (last_x + 6, y))
+                .map_err(SdlError)?;
+
+            last_x += 6;
+            last_y = y;
+        }
         Ok(())
     }
 }

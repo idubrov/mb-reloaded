@@ -54,6 +54,8 @@ impl Application<'_> {
             if self.main_menu_loop(ctx)? {
                 break;
             }
+
+            self.players_select_menu(ctx)?;
         }
         Ok(())
     }
