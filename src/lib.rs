@@ -1,9 +1,9 @@
 use crate::context::ApplicationContext;
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
+use crate::images::TexturePalette;
 use crate::keys::Keys;
 use crate::options::Options;
-use crate::spy::TexturePalette;
 use sdl2::mixer::Music;
 use std::path::Path;
 
@@ -14,11 +14,11 @@ mod error;
 pub mod fonts;
 mod glyphs;
 mod identities;
+pub mod images;
 mod keys;
 mod map;
 mod options;
 mod players;
-pub mod spy;
 
 mod menu {
   mod keys;

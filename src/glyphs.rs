@@ -1,5 +1,5 @@
 use crate::error::ApplicationError::SdlError;
-use crate::spy::TexturePalette;
+use crate::images::TexturePalette;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 

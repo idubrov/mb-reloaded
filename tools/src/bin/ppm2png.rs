@@ -40,7 +40,7 @@ fn main() -> Result<(), anyhow::Error> {
     source: source.into(),
   })?;
 
-  let decoded = mb_reloaded::spy::decode_ppm(&data)?;
+  let decoded = mb_reloaded::images::decode_ppm(&data)?;
   write_image(&args.output, decoded.width, decoded.height, &decoded.image).map_err(|source| {
     ToolError::OutputWriteError {
       path: args.output.to_owned(),

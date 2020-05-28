@@ -45,7 +45,7 @@ fn main() -> Result<(), anyhow::Error> {
     source: source.into(),
   })?;
 
-  let decoded = mb_reloaded::spy::decode_spy(640, 480, &data)?;
+  let decoded = mb_reloaded::images::decode_spy(640, 480, &data)?;
   write_image(&args.output, &decoded.image).map_err(|source| ToolError::OutputWriteError {
     path: args.output.to_owned(),
     source,
