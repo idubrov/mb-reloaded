@@ -1,6 +1,6 @@
 use crate::error::ApplicationError::SdlError;
 use crate::fonts::Font;
-use crate::spy::TexturePalette;
+use crate::spy::{TextureFormat, TexturePalette};
 use crate::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
@@ -94,9 +94,13 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   }
 
   /// Load SPY texture from a given path
-  pub fn load_texture(&self, file_name: &str) -> Result<TexturePalette<'textures>, anyhow::Error> {
+  pub fn load_spy(&self, file_name: &str) -> Result<TexturePalette<'textures>, anyhow::Error> {
     let path = self.game_dir.join(file_name);
-    Ok(crate::spy::load_texture(&self.texture_creator, &path)?)
+    Ok(crate::spy::load_texture(
+      &self.texture_creator,
+      &path,
+      TextureFormat::SPY,
+    )?)
   }
 
   /// Load fonts from a given path

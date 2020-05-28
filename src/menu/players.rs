@@ -94,8 +94,8 @@ impl Application<'_> {
   pub fn players_select_menu(&mut self, ctx: &mut ApplicationContext) -> Result<bool, anyhow::Error> {
     let mut state = State {
       total_players: self.options.players,
-      players: Players::load_players(ctx.game_dir())?,
-      identities: Identities::load_identities(ctx.game_dir()),
+      players: Players::load(ctx.game_dir())?,
+      identities: Identities::load(ctx.game_dir()),
       // 4 is "Play button"
       active_player: 4,
     };
@@ -155,6 +155,9 @@ impl Application<'_> {
       })?;
       ctx.present()?;
     };
+
+    state.identities.save(ctx.game_dir())?;
+    state.players.save(ctx.game_dir())?;
     // FIXME: save players.dat
     // FIXME: save identify.dat
     ctx.animate(Animation::FadeDown, 7)?;

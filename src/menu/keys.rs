@@ -38,7 +38,7 @@ impl Application<'_> {
             canvas.fill_rect(rect).map_err(SdlError)?;
             self
               .font
-              .render(canvas, 356, y, color, &format!("{:?}", scancode).to_uppercase())?;
+              .render(canvas, 356, y, color, &scancode.name().to_uppercase())?;
           }
           Ok(())
         })?;
@@ -71,7 +71,7 @@ impl Application<'_> {
             if let Some(scancode) = keys[key] {
               self
                 .font
-                .render(canvas, 356, y, color, &format!("{:?}", scancode).to_uppercase())?;
+                .render(canvas, 356, y, color, &scancode.name().to_uppercase())?;
             }
           }
         }

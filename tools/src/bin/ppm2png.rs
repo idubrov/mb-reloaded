@@ -3,10 +3,10 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-/// Convert SPY file into a PNG image
+/// Convert PPM file into a PNG image
 #[derive(structopt::StructOpt)]
 struct Args {
-  /// SPY file to load
+  /// PPM file to load
   #[structopt(parse(from_os_str))]
   input: PathBuf,
 
@@ -17,7 +17,7 @@ struct Args {
 
 #[derive(Debug, Error)]
 enum ToolError {
-  #[error("Failed to load an input SPY file from '{path}'")]
+  #[error("Failed to load an input PPM file from '{path}'")]
   InputReadError {
     path: PathBuf,
     #[source]
@@ -31,12 +31,7 @@ enum ToolError {
   },
 }
 
-// SPY files have fixed 640x480 size
-
-const WIDTH: usize = 640;
-const HEIGHT: usize = 480;
-
-/// Convert spy file into PNG
+/// Convert PPM file into PNG
 fn main() -> Result<(), anyhow::Error> {
   let args: Args = structopt::StructOpt::from_args();
 
@@ -45,23 +40,25 @@ fn main() -> Result<(), anyhow::Error> {
     source: source.into(),
   })?;
 
-  let decoded = mb_reloaded::spy::decode_spy(640, 480, &data)?;
-  write_image(&args.output, &decoded.image).map_err(|source| ToolError::OutputWriteError {
-    path: args.output.to_owned(),
-    source,
+  let decoded = mb_reloaded::spy::decode_ppm(&data)?;
+  write_image(&args.output, decoded.width, decoded.height, &decoded.image).map_err(|source| {
+    ToolError::OutputWriteError {
+      path: args.output.to_owned(),
+      source,
+    }
   })?;
 
   Ok(())
 }
 
-fn write_image(path: &Path, image: &[u8]) -> Result<(), anyhow::Error> {
+fn write_image(path: &Path, width: u32, height: u32, image: &[u8]) -> Result<(), anyhow::Error> {
   if let Some(parent) = path.parent() {
     std::fs::create_dir_all(parent)?;
   }
 
   let file = File::create(path)?;
   let buf = BufWriter::new(file);
-  let mut encoder = png::Encoder::new(buf, WIDTH as u32, HEIGHT as u32);
+  let mut encoder = png::Encoder::new(buf, width, height);
   encoder.set_color(png::ColorType::RGB);
   encoder.set_depth(png::BitDepth::Eight);
   let mut writer = encoder.write_header()?;

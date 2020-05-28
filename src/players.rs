@@ -5,9 +5,17 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[error("Failed to load player statistics from '{path}'")]
-pub struct StatsError {
+pub struct PlayersLoadError {
   #[source]
-  source: anyhow::Error,
+  source: std::io::Error,
+  path: PathBuf,
+}
+
+#[derive(Debug, Error)]
+#[error("Failed to save player statistics to '{path}'")]
+pub struct PlayersSaveError {
+  #[source]
+  source: std::io::Error,
   path: PathBuf,
 }
 
@@ -52,12 +60,12 @@ pub struct Players {
 
 impl Players {
   /// Load player statistics from `PLAYERS.DAT` file.
-  pub fn load_players(game_dir: &Path) -> Result<Players, StatsError> {
+  pub fn load(game_dir: &Path) -> Result<Players, PlayersLoadError> {
     let path = game_dir.join("PLAYERS.DAT");
-    Players::load_players_internal(&path).map_err(|source| StatsError { path, source })
+    Players::load_players_internal(&path).map_err(|source| PlayersLoadError { path, source })
   }
 
-  fn load_players_internal(path: &Path) -> Result<Players, anyhow::Error> {
+  fn load_players_internal(path: &Path) -> Result<Players, std::io::Error> {
     let data = std::fs::read(path)?;
     let mut players = Players::default();
     // Invalid format, just ignore
@@ -96,5 +104,46 @@ impl Players {
     }
 
     Ok(players)
+  }
+
+  pub fn save(&self, game_dir: &Path) -> Result<(), PlayersSaveError> {
+    let mut out: Vec<u8> = Vec::with_capacity(32 * 101);
+    for player in self.players.iter() {
+      if let Some(record) = player {
+        out.push(0);
+
+        let name_len = record.name.len().min(24);
+        out.push(name_len as u8);
+        out.extend_from_slice(&record.name.as_bytes()[..name_len]);
+        out.resize(out.len() + (24 - name_len), 0);
+
+        for value in &[
+          record.tournaments,
+          record.tournaments_wins,
+          record.rounds,
+          record.rounds_wins,
+          record.treasures_collected,
+          record.total_money,
+          record.bombs_bought,
+          record.bombs_dropped,
+          record.deaths,
+          record.meters_ran,
+        ] {
+          out.extend_from_slice(&value.to_le_bytes());
+        }
+
+        out.extend_from_slice(&record.history);
+        // FIXME: should this be history?
+        out.push(0);
+      } else {
+        out.push(1);
+        out.resize(out.len() + 100, 0);
+      }
+    }
+    assert_eq!(32 * 101, out.len());
+
+    let path = game_dir.join("PLAYERS.DAT");
+    std::fs::write(&path, &out).map_err(|source| PlayersSaveError { path, source })?;
+    Ok(())
   }
 }

@@ -1,5 +1,14 @@
 //! Manage which players were selected in the previous game
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+#[error("Failed to save selected players at '{path}'")]
+pub struct IdentitiesSaveError {
+  path: PathBuf,
+  #[source]
+  source: std::io::Error,
+}
 
 #[derive(Debug, Default)]
 pub struct Identities {
@@ -8,8 +17,8 @@ pub struct Identities {
 }
 
 impl Identities {
-  /// Load player statistics from `PLAYERS.DAT` file.
-  pub fn load_identities(game_dir: &Path) -> Identities {
+  /// Load players selected in the last game
+  pub fn load(game_dir: &Path) -> Identities {
     let path = game_dir.join("IDENTIFY.DAT");
     match std::fs::read(path) {
       Ok(data) if data.len() == 4 => {
@@ -23,5 +32,18 @@ impl Identities {
       }
       _ => Identities::default(),
     }
+  }
+
+  /// Save selected players
+  pub fn save(&self, game_dir: &Path) -> Result<(), IdentitiesSaveError> {
+    let path = game_dir.join("IDENTIFY.DAT");
+    let mut output: [u8; 4] = [0; 4];
+    for (idx, value) in self.players.iter().enumerate() {
+      output[idx] = match value {
+        None => 0,
+        Some(value) => value + 1,
+      }
+    }
+    std::fs::write(&path, &output).map_err(|source| IdentitiesSaveError { path, source })
   }
 }

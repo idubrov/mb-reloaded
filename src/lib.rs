@@ -28,8 +28,8 @@ mod menu {
   mod players;
 }
 
-const SCREEN_WIDTH: usize = 640;
-const SCREEN_HEIGHT: usize = 480;
+const SCREEN_WIDTH: u32 = 640;
+const SCREEN_HEIGHT: u32 = 480;
 
 //const MAP_WIDTH: usize = 64;
 //const MAP_HEIGHT: usize = 45;
@@ -72,21 +72,21 @@ impl<'textures> Application<'textures> {
   fn init(ctx: &ApplicationContext<'_, 'textures>) -> Result<Self, anyhow::Error> {
     let player_keys = keys::load_keys(ctx.game_dir());
     Ok(Self {
-      title: ctx.load_texture("TITLEBE.SPY")?,
-      main_menu: ctx.load_texture("MAIN3.SPY")?,
-      options_menu: ctx.load_texture("OPTIONS5.SPY")?,
-      levels_menu: ctx.load_texture("LEVSELEC.SPY")?,
-      keys: ctx.load_texture("KEYS.SPY")?,
-      glyphs: Glyphs::from_texture(ctx.load_texture("SIKA.SPY")?),
+      title: ctx.load_spy("TITLEBE.SPY")?,
+      main_menu: ctx.load_spy("MAIN3.SPY")?,
+      options_menu: ctx.load_spy("OPTIONS5.SPY")?,
+      levels_menu: ctx.load_spy("LEVSELEC.SPY")?,
+      keys: ctx.load_spy("KEYS.SPY")?,
+      glyphs: Glyphs::from_texture(ctx.load_spy("SIKA.SPY")?),
       font: ctx.load_font("FONTTI.FON")?,
       info: [
-        ctx.load_texture("INFO1.SPY")?,
-        ctx.load_texture("INFO3.SPY")?,
-        ctx.load_texture("SHAPET.SPY")?,
-        ctx.load_texture("INFO2.SPY")?,
+        ctx.load_spy("INFO1.SPY")?,
+        ctx.load_spy("INFO3.SPY")?,
+        ctx.load_spy("SHAPET.SPY")?,
+        ctx.load_spy("INFO2.SPY")?,
       ],
-      codes: ctx.load_texture("CODES.SPY")?,
-      players: ctx.load_texture("IDENTIFW.SPY")?,
+      codes: ctx.load_spy("CODES.SPY")?,
+      players: ctx.load_spy("IDENTIFW.SPY")?,
       music1: ctx.load_music("HUIPPE.S3M")?,
       _music2: ctx.load_music("OEKU.S3M")?,
       options: options::load_options(ctx.game_dir()),

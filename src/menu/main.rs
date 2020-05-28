@@ -55,7 +55,7 @@ impl Application<'_> {
         break;
       }
 
-      self.players_select_menu(ctx)?;
+      let _players = self.players_select_menu(ctx)?;
     }
     Ok(())
   }

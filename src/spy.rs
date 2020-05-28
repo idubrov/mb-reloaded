@@ -18,18 +18,40 @@ pub struct TexturePalette<'t> {
 pub struct InvalidSpyFile;
 
 #[derive(Debug, Error)]
+#[error("Provided PPM file is not in a valid PPM file format")]
+pub struct InvalidPpmFile;
+
+/// Raw data for the decoded image.
+pub struct DecodedImage {
+  pub width: u32,
+  pub height: u32,
+  pub palette: [Color; 16],
+  /// Image bytes, 3 bytes per pixel, RGB.
+  pub image: Vec<u8>,
+}
+
+#[derive(Debug, Error)]
 #[error("Failed to load texture from '{path}'")]
 pub struct TextureLoadingFailed {
   path: PathBuf,
   source: anyhow::Error,
 }
 
+/// Format of the texture to load
+pub enum TextureFormat {
+  /// Whole screen images, with palette and simple RLE encoding. Encode 4 independent bitplanes.
+  SPY,
+  /// Partial screen images with simple RLE encoding. Encode each color directly.
+  PPM,
+}
+
 /// Load texture at the given path
 pub fn load_texture<'t>(
   texture_creator: &'t TextureCreator<WindowContext>,
   path: &Path,
+  format: TextureFormat,
 ) -> Result<TexturePalette<'t>, TextureLoadingFailed> {
-  load_texture_internal(texture_creator, path).map_err(|source| TextureLoadingFailed {
+  load_texture_internal(texture_creator, path, format).map_err(|source| TextureLoadingFailed {
     path: path.to_owned(),
     source,
   })
@@ -38,20 +60,22 @@ pub fn load_texture<'t>(
 fn load_texture_internal<'t>(
   texture_creator: &'t TextureCreator<WindowContext>,
   path: &Path,
+  format: TextureFormat,
 ) -> Result<TexturePalette<'t>, anyhow::Error> {
-  let spy_data = std::fs::read(path)?;
-  let (palette_bytes, image) = decode_spy(SCREEN_WIDTH, SCREEN_HEIGHT, &spy_data)?;
+  let data = std::fs::read(path)?;
+
+  let decoded = match format {
+    TextureFormat::SPY => decode_spy(SCREEN_WIDTH, SCREEN_HEIGHT, &data)?,
+    TextureFormat::PPM => decode_ppm(&data)?,
+  };
   let mut texture =
-    texture_creator.create_texture_static(PixelFormatEnum::RGB24, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)?;
-  let mut palette: [Color; 16] = [Color::BLACK; 16];
-  for color in 0..16 {
-    let r = palette_bytes[color * 3];
-    let g = palette_bytes[color * 3 + 1];
-    let b = palette_bytes[color * 3 + 2];
-    palette[color] = Color::RGB(r, g, b);
-  }
-  texture.update(None, &image, SCREEN_WIDTH * 3)?;
-  Ok(TexturePalette { palette, texture })
+    texture_creator.create_texture_static(PixelFormatEnum::RGB24, decoded.width as u32, decoded.height as u32)?;
+
+  texture.update(None, &decoded.image, (decoded.width as usize) * 3)?;
+  Ok(TexturePalette {
+    palette: decoded.palette,
+    texture,
+  })
 }
 
 /// Decode SPY file into an RGB image. Image is returned as raw bytes, with 3 bytes per color (red,
@@ -61,9 +85,9 @@ fn load_texture_internal<'t>(
 /// with run-length encoding. Each bitplane is one bit of image pixel color (4 bitplanes means each
 /// color is 4-bits). Colors are indices into the palette (only first 16 colors of the palette are
 /// used).
-pub fn decode_spy(width: usize, height: usize, data: &[u8]) -> Result<(Vec<u8>, Vec<u8>), InvalidSpyFile> {
+pub fn decode_spy(width: u32, height: u32, data: &[u8]) -> Result<DecodedImage, InvalidSpyFile> {
   // Each bit of a bitplane is a pixel in the output image.
-  let bitplane_len = width * height / 8;
+  let bitplane_len = (width as usize) * (height as usize) / 8;
 
   // Header should include palette
   if data.len() < 768 {
@@ -96,7 +120,12 @@ pub fn decode_spy(width: usize, height: usize, data: &[u8]) -> Result<(Vec<u8>, 
       image.push(palette[color * 3 + 2]);
     }
   }
-  Ok((palette.to_vec(), image))
+  Ok(DecodedImage {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    palette: decode_palette(palette),
+    image,
+  })
 }
 
 /// Simple run-length encoding. `1` is interpreted as a run-length instruction. Everything else
@@ -117,4 +146,65 @@ fn decode_plane(bitplane_len: usize, mut it: impl Iterator<Item = u8>) -> Result
     }
   }
   Ok(image)
+}
+
+pub fn decode_ppm(data: &[u8]) -> Result<DecodedImage, InvalidPpmFile> {
+  // Header, palette and palette flag.
+  if data.len() < 128 + 768 + 1 {
+    return Err(InvalidPpmFile);
+  }
+  let from_y = u32::from(data[6]) + (u32::from(data[7]) << 8);
+  let to_y = u32::from(data[10]) + (u32::from(data[11]) << 8);
+  let width = u32::from(data[0x42]) + (u32::from(data[0x43]) << 8);
+  let height = to_y - from_y;
+  let mut it = data[128..data.len() - 769].iter().copied();
+  let palette = &data[data.len() - 768..];
+
+  let mut image = Vec::with_capacity((width as usize) * (height as usize) * 3);
+  for _ in 0..height {
+    let mut x = 0;
+    while x < width {
+      let value = it.next().ok_or(InvalidPpmFile)?;
+      if (value & 0xC0) == 0xC0 {
+        let len = u32::from(value) & 0x3F;
+        let color = usize::from(it.next().ok_or(InvalidPpmFile)?);
+
+        if x + len > width {
+          return Err(InvalidPpmFile);
+        }
+        for _ in 0..len {
+          image.push(palette[color * 3]);
+          image.push(palette[color * 3 + 1]);
+          image.push(palette[color * 3 + 2]);
+        }
+        x += len;
+      } else {
+        let color = usize::from(value);
+        image.push(palette[color * 3]);
+        image.push(palette[color * 3 + 1]);
+        image.push(palette[color * 3 + 2]);
+        x += 1;
+      }
+    }
+  }
+
+  debug_assert_eq!(image.len(), (width as usize) * (height as usize) * 3);
+  Ok(DecodedImage {
+    width,
+    height,
+    palette: decode_palette(palette),
+    image,
+  })
+}
+
+/// Decode palette from the image; note that we only read the first 16 colors.
+fn decode_palette(data: &[u8]) -> [Color; 16] {
+  let mut palette: [Color; 16] = [Color::BLACK; 16];
+  for color in 0..16 {
+    let r = data[color * 3];
+    let g = data[color * 3 + 1];
+    let b = data[color * 3 + 2];
+    palette[color] = Color::RGB(r, g, b);
+  }
+  palette
 }
