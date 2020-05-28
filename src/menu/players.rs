@@ -5,7 +5,7 @@ use crate::context::{Animation, ApplicationContext, InputEvent};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::identities::Identities;
-use crate::players::{PlayerStats, Players};
+use crate::players::{PlayerStats, PlayersRoster};
 use crate::Application;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -18,8 +18,8 @@ const LEFT_PANEL_X: i32 = 44;
 const LEFT_PANEL_Y: i32 = 35;
 
 struct State {
-  total_players: u8,
-  players: Players,
+  players: u8,
+  roster: PlayersRoster,
   identities: Identities,
   active_player: u8,
 }
@@ -27,7 +27,7 @@ struct State {
 impl State {
   /// Return stats for the player with the given index
   fn stats(&self, idx: u8) -> Option<&PlayerStats> {
-    self.players.players[usize::from(idx)].as_ref()
+    self.roster.players[usize::from(idx)].as_ref()
   }
 
   fn active_stats(&self) -> Option<&PlayerStats> {
@@ -44,7 +44,7 @@ impl State {
     self.active_player += 1;
     if self.active_player > 4 {
       self.active_player = 0;
-    } else if self.active_player != 4 && self.active_player >= self.total_players {
+    } else if self.active_player != 4 && self.active_player >= self.players {
       self.active_player = 4;
     }
   }
@@ -55,8 +55,8 @@ impl State {
       self.active_player = 4;
     } else {
       self.active_player -= 1;
-      if self.active_player >= self.total_players {
-        self.active_player = self.total_players - 1;
+      if self.active_player >= self.players {
+        self.active_player = self.players - 1;
       }
     }
   }
@@ -70,7 +70,7 @@ impl State {
 
   /// Delete statistics for the given player index
   fn delete_stats(&mut self, idx: u8) {
-    self.players.players[usize::from(idx)] = None;
+    self.roster.players[usize::from(idx)] = None;
     for identity in &mut self.identities.players {
       if *identity == Some(idx) {
         *identity = None;
@@ -79,22 +79,22 @@ impl State {
   }
 
   /// `true` if all players were selected
-  fn all_selected(&mut self) -> bool {
+  fn all_selected(&self) -> bool {
     self
       .identities
       .players
       .iter()
-      .take(usize::from(self.total_players))
+      .take(usize::from(self.players))
       .all(Option::is_some)
   }
 }
 
 impl Application<'_> {
   /// Returns `true` if exit was selected instead of play (via F10).
-  pub fn players_select_menu(&mut self, ctx: &mut ApplicationContext) -> Result<bool, anyhow::Error> {
+  pub fn players_select_menu(&self, ctx: &mut ApplicationContext, total_players: u8) -> Result<bool, anyhow::Error> {
     let mut state = State {
-      total_players: self.options.players,
-      players: Players::load(ctx.game_dir())?,
+      players: total_players,
+      roster: PlayersRoster::load(ctx.game_dir())?,
       identities: Identities::load(ctx.game_dir()),
       // 4 is "Play button"
       active_player: 4,
@@ -157,7 +157,7 @@ impl Application<'_> {
     };
 
     state.identities.save(ctx.game_dir())?;
-    state.players.save(ctx.game_dir())?;
+    state.roster.save(ctx.game_dir())?;
     // FIXME: save players.dat
     // FIXME: save identify.dat
     ctx.animate(Animation::FadeDown, 7)?;
@@ -174,7 +174,7 @@ impl Application<'_> {
 
     // If we entered this menu via pressed key, pick an empty name slot
     if initial_input.is_some() {
-      let player_idx = state.players.players.iter().position(|v| v.is_none());
+      let player_idx = state.roster.players.iter().position(|v| v.is_none());
       state.identities.players[current_player] = Some(player_idx.unwrap_or(31) as u8);
     }
 
@@ -318,7 +318,7 @@ impl Application<'_> {
 
     let mut new_player = PlayerStats::default();
     new_player.name = name;
-    state.players.players[usize::from(player_idx)] = Some(new_player);
+    state.roster.players[usize::from(player_idx)] = Some(new_player);
 
     // Refresh names panel
     ctx.with_render_context(|canvas| self.render_right_pane(canvas, state))?;
@@ -333,7 +333,7 @@ impl Application<'_> {
     last_active_player: u8,
   ) -> Result<(), anyhow::Error> {
     // Erase panels for unused players
-    let cnt = i32::from(self.options.players);
+    let cnt = i32::from(state.players);
     canvas.set_draw_color(Color::BLACK);
     for player in cnt..4 {
       let rect = Rect::new(39, player * 53 + 18, 293, 53);
@@ -353,10 +353,10 @@ impl Application<'_> {
       canvas
         .fill_rect(Rect::new(119, player * 53 + 40, 26 * 8, 10))
         .map_err(SdlError)?;
-      if player < i32::from(self.options.players) {
+      if player < i32::from(state.players) {
         let color = self.players.palette[1];
         if let Some(stats) =
-          state.identities.players[player as usize].and_then(|idx| state.players.players[usize::from(idx)].as_ref())
+          state.identities.players[player as usize].and_then(|idx| state.roster.players[usize::from(idx)].as_ref())
         {
           self.font.render(canvas, 120, player * 53 + 41, color, &stats.name)?;
         }
@@ -374,7 +374,7 @@ impl Application<'_> {
     for idx in 0..32 {
       let x = RIGHT_PANEL_X + 2;
       let y = RIGHT_PANEL_Y + (idx as i32) * 8 + 1;
-      if let Some(ref player) = state.players.players[idx] {
+      if let Some(ref player) = state.roster.players[idx] {
         self.font.render(canvas, x, y, palette[1], &player.name)?;
       } else {
         self.font.render(canvas, x, y, palette[3], "-")?;

@@ -54,20 +54,20 @@ impl Default for PlayerStats {
 }
 
 #[derive(Default)]
-pub struct Players {
+pub struct PlayersRoster {
   pub players: Box<[Option<PlayerStats>; 32]>,
 }
 
-impl Players {
+impl PlayersRoster {
   /// Load player statistics from `PLAYERS.DAT` file.
-  pub fn load(game_dir: &Path) -> Result<Players, PlayersLoadError> {
+  pub fn load(game_dir: &Path) -> Result<PlayersRoster, PlayersLoadError> {
     let path = game_dir.join("PLAYERS.DAT");
-    Players::load_players_internal(&path).map_err(|source| PlayersLoadError { path, source })
+    PlayersRoster::load_players_internal(&path).map_err(|source| PlayersLoadError { path, source })
   }
 
-  fn load_players_internal(path: &Path) -> Result<Players, std::io::Error> {
+  fn load_players_internal(path: &Path) -> Result<PlayersRoster, std::io::Error> {
     let data = std::fs::read(path)?;
-    let mut players = Players::default();
+    let mut players = PlayersRoster::default();
     // Invalid format, just ignore
     if data.len() != 3232 {
       return Ok(players);

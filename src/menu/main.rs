@@ -1,6 +1,7 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
+use crate::settings::GameSettings;
 use crate::Application;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -39,7 +40,7 @@ impl SelectedMenu {
 }
 
 impl Application<'_> {
-  pub fn main_menu(mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  pub fn main_menu(self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
     self.music1.play(-1).map_err(SdlError)?;
 
     ctx.render_texture(&self.title.texture)?;
@@ -50,18 +51,13 @@ impl Application<'_> {
       return Ok(());
     }
 
-    loop {
-      if self.main_menu_loop(ctx)? {
-        break;
-      }
-
-      let _players = self.players_select_menu(ctx)?;
-    }
+    self.main_menu_loop(ctx)?;
     Ok(())
   }
 
   /// Returns `true` if exit was selected
-  fn main_menu_loop(&mut self, ctx: &mut ApplicationContext) -> Result<bool, anyhow::Error> {
+  fn main_menu_loop(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+    let mut settings = GameSettings::load(ctx.game_dir());
     let mut selected_item = SelectedMenu::NewGame;
     loop {
       self.render_main_menu(ctx, selected_item)?;
@@ -69,19 +65,20 @@ impl Application<'_> {
       self.main_menu_navigation_loop(ctx, &mut selected_item)?;
       ctx.animate(Animation::FadeDown, 7)?;
       match selected_item {
-        SelectedMenu::Quit => return Ok(true),
-        SelectedMenu::NewGame => return Ok(false),
-        SelectedMenu::Options => self.options_menu(ctx)?,
-        SelectedMenu::Info => {
-          self.info_menu(ctx)?;
+        SelectedMenu::Quit => break Ok(()),
+        SelectedMenu::NewGame => {
+          self.play_game(ctx, &settings)?;
+          self.music1.play(-1).map_err(SdlError)?;
         }
+        SelectedMenu::Options => self.options_menu(ctx, &mut settings)?,
+        SelectedMenu::Info => self.info_menu(ctx)?,
       }
     }
   }
 
   /// Runs navigation inside main menu. Return
   fn main_menu_navigation_loop(
-    &mut self,
+    &self,
     ctx: &mut ApplicationContext,
     selected: &mut SelectedMenu,
   ) -> Result<(), anyhow::Error> {
@@ -113,7 +110,7 @@ impl Application<'_> {
   }
 
   /// Display main menu with selected option, plus animation
-  fn render_main_menu(&mut self, ctx: &mut ApplicationContext, selected: SelectedMenu) -> Result<(), anyhow::Error> {
+  fn render_main_menu(&self, ctx: &mut ApplicationContext, selected: SelectedMenu) -> Result<(), anyhow::Error> {
     let texture = &self.main_menu;
     let glyphs = &self.glyphs;
     ctx.with_render_context(|canvas| {
@@ -134,7 +131,7 @@ impl Application<'_> {
   }
 
   fn update_shovel(
-    &mut self,
+    &self,
     ctx: &mut ApplicationContext,
     previous: SelectedMenu,
     selected: SelectedMenu,
@@ -152,7 +149,7 @@ impl Application<'_> {
     Ok(())
   }
 
-  fn info_menu(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  fn info_menu(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
     let mut key = Scancode::Escape;
     for info in &self.info {
       ctx.render_texture(&info.texture)?;

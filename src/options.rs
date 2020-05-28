@@ -91,8 +91,27 @@ impl Options {
     opts
   }
 
+  /// Load options from a configuration file. This function uses the same format as the original game.
+  pub fn load(game_dir: &Path) -> Self {
+    let path = game_dir.join("OPTIONS.CFG");
+    let mut buf: [u8; 17] = [0; 17];
+    std::fs::File::open(path)
+      .and_then(|mut file| file.read_exact(&mut buf))
+      .map(|()| Options::from_binary(&buf))
+      .unwrap_or_default()
+  }
+
   /// Save options into a binary slice
-  pub fn save(&self) -> Vec<u8> {
+  pub fn save(&self, game_dir: &Path) -> Result<(), anyhow::Error> {
+    let data = self.save_inner();
+    let path = game_dir.join("OPTIONS.CFG");
+    // FIXME: either proper errors or logging
+    std::fs::write(path, &data)?;
+    Ok(())
+  }
+
+  /// Save options into a binary slice
+  fn save_inner(&self) -> Vec<u8> {
     let mut buf = Vec::with_capacity(17);
     buf.write_u8(self.players).unwrap();
     buf.write_u8(self.treasures).unwrap();
@@ -125,14 +144,4 @@ fn to_duration(value: u32) -> Duration {
 /// CMOS realtime clock interrupt frequency.
 fn from_duration(value: Duration) -> u32 {
   (value.as_secs() * 182 / 10) as u32
-}
-
-/// Load options from a configuration file. This function uses the same format as the original game.
-pub fn load_options(game_dir: &Path) -> Options {
-  let path = game_dir.join("options.cfg");
-  let mut buf: [u8; 17] = [0; 17];
-  std::fs::File::open(path)
-    .and_then(|mut file| file.read_exact(&mut buf))
-    .map(|()| Options::from_binary(&buf))
-    .unwrap_or_default()
 }

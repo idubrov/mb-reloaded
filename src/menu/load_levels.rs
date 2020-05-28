@@ -1,6 +1,6 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
-use crate::map::MapData;
+use crate::map::{LevelInfo, MapData};
 use crate::Application;
 use rand::prelude::*;
 use sdl2::keyboard::Scancode;
@@ -10,6 +10,7 @@ use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use std::collections::hash_map::{Entry, HashMap};
 use std::path::Path;
+use std::rc::Rc;
 
 // paletted indices
 const SELECTED: usize = 7;
@@ -19,13 +20,8 @@ const UNSELECTED_RANDOM: usize = 4;
 const ACTIVE_SELECTED: usize = 6;
 const ACTIVE_UNSELECTED: usize = 0;
 
-enum LevelInfo {
-  Random,
-  File { name: String, map: MapData },
-}
-
 struct State {
-  levels: Vec<LevelInfo>,
+  levels: Vec<Rc<LevelInfo>>,
   cursor: usize,
   level_pick: Vec<usize>,
 }
@@ -76,7 +72,7 @@ impl State {
 }
 
 impl Application<'_> {
-  pub fn load_levels(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  pub fn load_levels(&self, ctx: &mut ApplicationContext, rounds: usize) -> Result<Vec<Rc<LevelInfo>>, anyhow::Error> {
     let mut levels = find_levels(ctx.game_dir())?;
 
     // We cannot show more than that
@@ -105,7 +101,7 @@ impl Application<'_> {
       ctx.animate(Animation::FadeUp, 7)?;
       ctx.wait_key_pressed();
       ctx.animate(Animation::FadeDown, 7)?;
-      return Ok(());
+      return Ok(Vec::new());
     }
 
     let state = State {
@@ -116,12 +112,17 @@ impl Application<'_> {
 
     self.render_levels_menu(ctx, &state)?;
     ctx.animate(Animation::FadeUp, 7)?;
-    let _selected = self.level_select_loop(ctx, state)?;
+    let levels = self.level_select_loop(ctx, state, rounds)?;
     ctx.animate(Animation::FadeDown, 7)?;
-    Ok(())
+    Ok(levels)
   }
 
-  fn level_select_loop(&self, ctx: &mut ApplicationContext, mut state: State) -> Result<Vec<usize>, anyhow::Error> {
+  fn level_select_loop(
+    &self,
+    ctx: &mut ApplicationContext,
+    mut state: State,
+    rounds: usize,
+  ) -> Result<Vec<Rc<LevelInfo>>, anyhow::Error> {
     let mut previews = HashMap::new();
     loop {
       let (scan, _) = ctx.wait_key_pressed();
@@ -129,7 +130,7 @@ impl Application<'_> {
       let mut need_update = false;
       match scan {
         Scancode::Escape => break,
-        Scancode::Return | Scancode::KpEnter if state.level_pick.len() < usize::from(self.options.rounds) => {
+        Scancode::Return | Scancode::KpEnter if state.level_pick.len() < rounds => {
           state.select_current();
           need_update = true;
         }
@@ -139,7 +140,7 @@ impl Application<'_> {
         Scancode::Down | Scancode::Kp2 => state.down(),
 
         Scancode::F1 => {
-          state.randomize(usize::from(self.options.rounds));
+          state.randomize(rounds);
 
           // Refresh the whole menu
           ctx.with_render_context(|canvas| {
@@ -181,7 +182,14 @@ impl Application<'_> {
         ctx.present()?;
       }
     }
-    Ok(state.level_pick)
+
+    let levels = state
+      .level_pick
+      .iter()
+      .copied()
+      .map(|idx| state.levels[idx].clone())
+      .collect::<Vec<_>>();
+    Ok(levels)
   }
 
   fn render_slot(&self, canvas: &mut WindowCanvas, state: &State, position: usize) -> Result<(), anyhow::Error> {
@@ -210,7 +218,7 @@ impl Application<'_> {
     };
     let left = (column * 80) as i32;
     let top = (row * 10 + 74) as i32;
-    let level_name = match level {
+    let level_name = match level.as_ref() {
       LevelInfo::Random => "Random",
       LevelInfo::File { ref name, .. } => name,
     };
@@ -253,7 +261,7 @@ impl Application<'_> {
   }
 }
 
-fn find_levels(path: &Path) -> Result<Vec<LevelInfo>, anyhow::Error> {
+fn find_levels(path: &Path) -> Result<Vec<Rc<LevelInfo>>, anyhow::Error> {
   let mut result = Vec::new();
   for entry in path.read_dir()? {
     if let Ok(entry) = entry {
@@ -262,13 +270,13 @@ fn find_levels(path: &Path) -> Result<Vec<LevelInfo>, anyhow::Error> {
         let data = std::fs::read(&path)?;
         if let Ok(map) = MapData::from_bytes(data) {
           let name = path.file_stem().unwrap().to_string_lossy().to_uppercase();
-          result.push(LevelInfo::File { name, map });
+          result.push(Rc::new(LevelInfo::File { name, map }));
         }
       }
     }
   }
-  result.push(LevelInfo::Random);
-  result.sort_by_cached_key(|v| match v {
+  result.push(Rc::new(LevelInfo::Random));
+  result.sort_by_cached_key(|v| match v.as_ref() {
     LevelInfo::Random => (false, String::new()),
     LevelInfo::File { name, .. } => (true, name.to_owned()),
   });

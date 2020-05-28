@@ -13,6 +13,11 @@ pub struct MapData {
   data: Vec<MapValue>,
 }
 
+pub enum LevelInfo {
+  Random,
+  File { name: String, map: MapData },
+}
+
 impl MapData {
   /// Create statically typed map from a vector of bytes.
   pub fn from_bytes(data: Vec<u8>) -> Result<MapData, InvalidMap> {

@@ -2,6 +2,7 @@ use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::options::{Options, WinCondition};
+use crate::settings::GameSettings;
 use crate::Application;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use sdl2::keyboard::{Keycode, Scancode};
@@ -50,6 +51,103 @@ impl GameOption {
   /// items for other menus (redefine keys, load levels and main menu).
   fn all_options() -> impl Iterator<Item = GameOption> {
     (0..14).map(|v| v.try_into().unwrap())
+  }
+
+  fn value_minus(self, options: &mut Options) {
+    match self {
+      GameOption::Cash => {
+        if options.cash >= 100 {
+          options.cash -= 100;
+        } else {
+          options.cash = 0;
+        }
+      }
+      GameOption::Treasures if options.treasures > 0 => {
+        options.treasures -= 1;
+      }
+      GameOption::Rounds if options.rounds > 1 => {
+        options.rounds -= 1;
+      }
+      GameOption::Time => {
+        options.round_time = options
+          .round_time
+          .checked_sub(Duration::from_secs(15))
+          .unwrap_or(Duration::from_secs(0));
+      }
+      GameOption::Players if options.players > 1 => {
+        options.players -= 1;
+      }
+      GameOption::Speed if options.speed < 33 => {
+        options.speed += 1;
+      }
+      GameOption::BombDamage if options.bomb_damage > 0 => {
+        options.bomb_damage -= 1;
+      }
+      GameOption::Darkness => {
+        options.darkness = !options.darkness;
+      }
+      GameOption::FreeMarket => {
+        options.free_market = !options.free_market;
+      }
+      GameOption::Selling => {
+        options.selling = !options.selling;
+      }
+      GameOption::Winner if options.win == WinCondition::ByWins => {
+        options.win = WinCondition::ByMoney;
+      }
+      GameOption::Winner if options.win == WinCondition::ByMoney => {
+        options.win = WinCondition::ByWins;
+      }
+      _ => {}
+    }
+  }
+
+  fn value_plus(self, options: &mut Options) {
+    match self {
+      GameOption::Cash => {
+        options.cash += 100;
+        if options.cash > 2650 {
+          options.cash = 2650;
+        }
+      }
+      GameOption::Treasures if options.treasures < 75 => {
+        options.treasures += 1;
+      }
+      GameOption::Rounds if options.rounds < 55 => {
+        options.rounds += 1;
+      }
+      GameOption::Time => {
+        options.round_time += Duration::from_secs(15);
+        if options.round_time > Duration::from_secs(22 * 60 + 40) {
+          options.round_time = Duration::from_secs(22 * 60 + 40)
+        }
+      }
+      GameOption::Players if options.players < 4 => {
+        options.players += 1;
+      }
+      GameOption::Speed if options.speed > 0 => {
+        options.speed -= 1;
+      }
+      GameOption::BombDamage if options.bomb_damage < 100 => {
+        options.bomb_damage += 1;
+      }
+      GameOption::Darkness => {
+        options.darkness = !options.darkness;
+      }
+      GameOption::FreeMarket => {
+        options.free_market = !options.free_market;
+      }
+      GameOption::Selling => {
+        options.selling = !options.selling;
+      }
+      GameOption::Winner if options.win == WinCondition::ByWins => {
+        options.win = WinCondition::ByMoney;
+      }
+      GameOption::Winner if options.win == WinCondition::ByMoney => {
+        options.win = WinCondition::ByWins;
+      }
+      _ => {}
+    }
   }
 }
 
@@ -103,16 +201,20 @@ impl GameOption {
 }
 
 impl Application<'_> {
-  pub fn options_menu(&mut self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  pub fn options_menu(&self, ctx: &mut ApplicationContext, settings: &mut GameSettings) -> Result<(), anyhow::Error> {
     loop {
-      self.render_options_menu(ctx, GameOption::MainMenu)?;
+      self.render_options_menu(ctx, &settings.options, GameOption::MainMenu)?;
       ctx.animate(Animation::FadeUp, 7)?;
-      let selected = self.option_menu_navigation_loop(ctx)?;
+      let selected = self.option_menu_navigation_loop(ctx, &mut settings.options)?;
       ctx.animate(Animation::FadeDown, 7)?;
 
       match selected {
-        GameOption::LoadLevels => self.load_levels(ctx)?,
-        GameOption::RedefineKeys => self.redefine_keys_menu(ctx)?,
+        GameOption::LoadLevels => {
+          settings.levels = self.load_levels(ctx, usize::from(settings.options.rounds))?;
+        }
+        GameOption::RedefineKeys => {
+          self.redefine_keys_menu(ctx, &mut settings.keys)?;
+        }
         GameOption::MainMenu => break,
         // Should never get here
         _ => {}
@@ -120,13 +222,15 @@ impl Application<'_> {
     }
 
     // Save options
-    let opts = self.options.save();
-    let path = ctx.game_dir().join("options.cfg");
-    std::fs::write(path, opts)?;
+    settings.options.save(ctx.game_dir())?;
     Ok(())
   }
 
-  fn option_menu_navigation_loop(&mut self, ctx: &mut ApplicationContext) -> Result<GameOption, anyhow::Error> {
+  fn option_menu_navigation_loop(
+    &self,
+    ctx: &mut ApplicationContext,
+    options: &mut Options,
+  ) -> Result<GameOption, anyhow::Error> {
     let mut selected = GameOption::MainMenu;
     loop {
       let (scancode, keycode) = ctx.wait_key_pressed();
@@ -152,31 +256,32 @@ impl Application<'_> {
           return Ok(selected);
         }
         Scancode::Left => {
-          self.update_value_minus(selected);
+          selected.value_minus(options);
           ctx.with_render_context(|canvas| {
-            self.render_option_value(canvas, selected)?;
+            self.render_option_value(canvas, options, selected)?;
             Ok(())
           })?;
           ctx.present()?;
         }
         Scancode::Right => {
-          self.update_value_plus(selected);
+          selected.value_plus(options);
           ctx.with_render_context(|canvas| {
-            self.render_option_value(canvas, selected)?;
+            self.render_option_value(canvas, options, selected)?;
             Ok(())
           })?;
           ctx.present()?;
         }
         Scancode::Return | Scancode::KpEnter if selected == GameOption::RedefineKeys => {
-          ctx.animate(Animation::FadeDown, 7)?;
-          self.redefine_keys_menu(ctx)?;
-          ctx.animate(Animation::FadeUp, 7)?;
+          panic!();
+          // ctx.animate(Animation::FadeDown, 7)?;
+          // self.redefine_keys_menu(ctx, &mut settings.keys)?;
+          // ctx.animate(Animation::FadeUp, 7)?;
         }
         _ if keycode == Keycode::D => {
-          self.options = Options::default();
+          *options = Options::default();
           ctx.with_render_context(|canvas| {
             for option in GameOption::all_options() {
-              self.render_option_value(canvas, option)?;
+              self.render_option_value(canvas, options, option)?;
             }
             Ok(())
           })?;
@@ -187,112 +292,19 @@ impl Application<'_> {
     }
   }
 
-  fn update_value_minus(&mut self, selected: GameOption) {
-    match selected {
-      GameOption::Cash => {
-        if self.options.cash >= 100 {
-          self.options.cash -= 100;
-        } else {
-          self.options.cash = 0;
-        }
-      }
-      GameOption::Treasures if self.options.treasures > 0 => {
-        self.options.treasures -= 1;
-      }
-      GameOption::Rounds if self.options.rounds > 1 => {
-        self.options.rounds -= 1;
-      }
-      GameOption::Time => {
-        self.options.round_time = self
-          .options
-          .round_time
-          .checked_sub(Duration::from_secs(15))
-          .unwrap_or(Duration::from_secs(0));
-      }
-      GameOption::Players if self.options.players > 1 => {
-        self.options.players -= 1;
-      }
-      GameOption::Speed if self.options.speed < 33 => {
-        self.options.speed += 1;
-      }
-      GameOption::BombDamage if self.options.bomb_damage > 0 => {
-        self.options.bomb_damage -= 1;
-      }
-      GameOption::Darkness => {
-        self.options.darkness = !self.options.darkness;
-      }
-      GameOption::FreeMarket => {
-        self.options.free_market = !self.options.free_market;
-      }
-      GameOption::Selling => {
-        self.options.selling = !self.options.selling;
-      }
-      GameOption::Winner if self.options.win == WinCondition::ByWins => {
-        self.options.win = WinCondition::ByMoney;
-      }
-      GameOption::Winner if self.options.win == WinCondition::ByMoney => {
-        self.options.win = WinCondition::ByWins;
-      }
-      _ => {}
-    }
-  }
-
-  fn update_value_plus(&mut self, selected: GameOption) {
-    match selected {
-      GameOption::Cash => {
-        self.options.cash += 100;
-        if self.options.cash > 2650 {
-          self.options.cash = 2650;
-        }
-      }
-      GameOption::Treasures if self.options.treasures < 75 => {
-        self.options.treasures += 1;
-      }
-      GameOption::Rounds if self.options.rounds < 55 => {
-        self.options.rounds += 1;
-      }
-      GameOption::Time => {
-        self.options.round_time += Duration::from_secs(15);
-        if self.options.round_time > Duration::from_secs(22 * 60 + 40) {
-          self.options.round_time = Duration::from_secs(22 * 60 + 40)
-        }
-      }
-      GameOption::Players if self.options.players < 4 => {
-        self.options.players += 1;
-      }
-      GameOption::Speed if self.options.speed > 0 => {
-        self.options.speed -= 1;
-      }
-      GameOption::BombDamage if self.options.bomb_damage < 100 => {
-        self.options.bomb_damage += 1;
-      }
-      GameOption::Darkness => {
-        self.options.darkness = !self.options.darkness;
-      }
-      GameOption::FreeMarket => {
-        self.options.free_market = !self.options.free_market;
-      }
-      GameOption::Selling => {
-        self.options.selling = !self.options.selling;
-      }
-      GameOption::Winner if self.options.win == WinCondition::ByWins => {
-        self.options.win = WinCondition::ByMoney;
-      }
-      GameOption::Winner if self.options.win == WinCondition::ByMoney => {
-        self.options.win = WinCondition::ByWins;
-      }
-      _ => {}
-    }
-  }
-
-  fn render_options_menu(&mut self, ctx: &mut ApplicationContext, selected: GameOption) -> Result<(), anyhow::Error> {
+  fn render_options_menu(
+    &self,
+    ctx: &mut ApplicationContext,
+    options: &Options,
+    selected: GameOption,
+  ) -> Result<(), anyhow::Error> {
     ctx.with_render_context(|canvas| {
       canvas.copy(&self.options_menu.texture, None, None).map_err(SdlError)?;
       let (x, y) = selected.cursor_pos();
       self.glyphs.render(canvas, x, y, Glyph::ArrowPointer)?;
 
       for option in GameOption::all_options() {
-        self.render_option_value(canvas, option)?;
+        self.render_option_value(canvas, options, option)?;
       }
       Ok(())
     })?;
@@ -300,17 +312,22 @@ impl Application<'_> {
   }
 
   /// Render value for the given option
-  fn render_option_value(&self, canvas: &mut WindowCanvas, option: GameOption) -> Result<(), anyhow::Error> {
+  fn render_option_value(
+    &self,
+    canvas: &mut WindowCanvas,
+    options: &Options,
+    option: GameOption,
+  ) -> Result<(), anyhow::Error> {
     if option >= GameOption::Cash && option <= GameOption::BombDamage {
       let rect = option.value_bar_rect();
       canvas.set_draw_color(Color::RGB(0, 0, 0));
       canvas.fill_rect(rect).map_err(SdlError)?;
     } else if option >= GameOption::Darkness && option <= GameOption::Winner {
       let enabled = match option {
-        GameOption::Darkness => self.options.darkness,
-        GameOption::FreeMarket => self.options.free_market,
-        GameOption::Selling => self.options.selling,
-        GameOption::Winner => self.options.win == WinCondition::ByMoney,
+        GameOption::Darkness => options.darkness,
+        GameOption::FreeMarket => options.free_market,
+        GameOption::Selling => options.selling,
+        GameOption::Winner => options.win == WinCondition::ByMoney,
         _ => unreachable!(),
       };
       let glyphs = if enabled {
@@ -327,16 +344,16 @@ impl Application<'_> {
     // Render values
     if option >= GameOption::Cash && option <= GameOption::BombDamage {
       let value = match option {
-        GameOption::Cash => u64::from(self.options.cash) * 165 / 2650,
-        GameOption::Treasures => u64::from(self.options.treasures) * 165 / 75,
-        GameOption::Rounds => u64::from(self.options.rounds) * 165 / 55,
-        GameOption::Time => self.options.round_time.as_secs() * 165 / 1359,
-        GameOption::Players => (u64::from(self.options.players) - 1) * 55,
+        GameOption::Cash => u64::from(options.cash) * 165 / 2650,
+        GameOption::Treasures => u64::from(options.treasures) * 165 / 75,
+        GameOption::Rounds => u64::from(options.rounds) * 165 / 55,
+        GameOption::Time => options.round_time.as_secs() * 165 / 1359,
+        GameOption::Players => (u64::from(options.players) - 1) * 55,
         GameOption::Speed => {
-          let speed = 100 - 3 * u64::from(self.options.speed);
+          let speed = 100 - 3 * u64::from(options.speed);
           speed * 165 / 100
         }
-        GameOption::BombDamage => u64::from(self.options.bomb_damage) * 165 / 100,
+        GameOption::BombDamage => u64::from(options.bomb_damage) * 165 / 100,
         _ => 0,
       };
       let mut rect = option.value_bar_rect();
@@ -348,16 +365,16 @@ impl Application<'_> {
     // Print text
 
     let text = match option {
-      GameOption::Cash => Some(format!("{}", self.options.cash)),
-      GameOption::Treasures => Some(format!("{}", self.options.treasures)),
-      GameOption::Rounds => Some(format!("{}", self.options.rounds)),
+      GameOption::Cash => Some(format!("{}", options.cash)),
+      GameOption::Treasures => Some(format!("{}", options.treasures)),
+      GameOption::Rounds => Some(format!("{}", options.rounds)),
       GameOption::Time => {
-        let seconds = self.options.round_time.as_secs();
+        let seconds = options.round_time.as_secs();
         Some(format!("{}:{:02} min", seconds / 60, seconds % 60))
       }
-      GameOption::Players => Some(format!(" {}", self.options.players)),
-      GameOption::Speed => Some(format!(" {}%", 100 - 3 * self.options.speed)),
-      GameOption::BombDamage => Some(format!(" {}%", self.options.bomb_damage)),
+      GameOption::Players => Some(format!(" {}", options.players)),
+      GameOption::Speed => Some(format!(" {}%", 100 - 3 * options.speed)),
+      GameOption::BombDamage => Some(format!(" {}%", options.bomb_damage)),
       _ => None,
     };
     if let Some(text) = text {
@@ -370,7 +387,7 @@ impl Application<'_> {
 
   /// Update cursor icon
   fn update_pointer(
-    &mut self,
+    &self,
     ctx: &mut ApplicationContext,
     previous: GameOption,
     selected: GameOption,

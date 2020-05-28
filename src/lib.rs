@@ -2,8 +2,6 @@ use crate::context::ApplicationContext;
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
-use crate::keys::Keys;
-use crate::options::Options;
 use sdl2::mixer::Music;
 use std::path::Path;
 
@@ -19,8 +17,10 @@ mod keys;
 mod map;
 mod options;
 mod players;
+mod settings;
 
 mod menu {
+  mod game;
   mod keys;
   mod load_levels;
   mod main;
@@ -37,10 +37,10 @@ const SCREEN_HEIGHT: u32 = 480;
 pub fn main() -> Result<(), anyhow::Error> {
   let path = args::parse_args();
   context::ApplicationContext::with_context(path, |mut ctx| {
-    let mut app = Application::init(&ctx)?;
+    let app = Application::init(&ctx)?;
     // To skip menus during development
     if std::env::var("DEV").is_ok() {
-      app.players_select_menu(&mut ctx)?;
+      app.players_select_menu(&mut ctx, 2)?;
     } else {
       app.main_menu(&mut ctx)?;
     }
@@ -63,14 +63,11 @@ struct Application<'t> {
   music1: Music<'static>,
   // Position 465 is position of shop music.
   _music2: Music<'static>,
-  options: Options,
   registered: String,
-  player_keys: [Keys; 4],
 }
 
 impl<'textures> Application<'textures> {
   fn init(ctx: &ApplicationContext<'_, 'textures>) -> Result<Self, anyhow::Error> {
-    let player_keys = keys::load_keys(ctx.game_dir());
     Ok(Self {
       title: ctx.load_spy("TITLEBE.SPY")?,
       main_menu: ctx.load_spy("MAIN3.SPY")?,
@@ -89,9 +86,7 @@ impl<'textures> Application<'textures> {
       players: ctx.load_spy("IDENTIFW.SPY")?,
       music1: ctx.load_music("HUIPPE.S3M")?,
       _music2: ctx.load_music("OEKU.S3M")?,
-      options: options::load_options(ctx.game_dir()),
       registered: load_registered(ctx.game_dir()).unwrap_or_else(String::new),
-      player_keys,
     })
   }
 }

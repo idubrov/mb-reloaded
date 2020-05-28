@@ -4,10 +4,15 @@ use sdl2::keyboard::Scancode;
 use std::convert::TryInto;
 use std::path::Path;
 
-#[derive(Debug, Clone, Default)]
-pub struct Keys {
+#[derive(Default)]
+pub struct KeyBindings {
   /// Keys, indexed by `Key` enum.
   keys: [Option<Scancode>; 8],
+}
+
+pub struct KeysConfig {
+  /// Only 4 players for now
+  pub keys: [KeyBindings; 4],
 }
 
 /// Key binding types. Note that this enum is ordered the same way we save them to the configuration
@@ -32,7 +37,7 @@ impl Key {
   }
 }
 
-impl std::ops::Index<Key> for Keys {
+impl std::ops::Index<Key> for KeyBindings {
   type Output = Option<Scancode>;
 
   fn index(&self, key: Key) -> &Self::Output {
@@ -40,7 +45,7 @@ impl std::ops::Index<Key> for Keys {
   }
 }
 
-impl std::ops::IndexMut<Key> for Keys {
+impl std::ops::IndexMut<Key> for KeyBindings {
   fn index_mut(&mut self, key: Key) -> &mut Self::Output {
     &mut self.keys[key as usize]
   }
@@ -62,33 +67,36 @@ impl std::fmt::Display for Key {
   }
 }
 
-/// Load key bindings from the configuration file. First, look for a new config (which can use all
-/// the scancodes that SDL supports). If not found, try loading old config. If old config is not
-/// found, just go with the defaults.
-pub fn load_keys(game_dir: &Path) -> [Keys; 4] {
-  // FIXME: Actually, provide some defaults for players
-  load_keys_internal(game_dir)
-    .or_else(|| load_keys_legacy(game_dir))
-    .unwrap_or_else(Default::default)
-}
-
-/// Save key bindings; note that we always save in our new format, using SDL keycodes.
-pub fn save_keys(keys: &[Keys; 4], game_dir: &Path) -> Result<(), anyhow::Error> {
-  let mut buf = Vec::with_capacity(32);
-  for keys in keys.iter() {
-    // Note that in our format, we use different order (same as `Key` enum).
-    for key in Key::all_keys() {
-      let value = keys[key].map(|k| k as i32).unwrap_or(0);
-      buf.write_i32::<LittleEndian>(value)?;
-    }
+impl KeysConfig {
+  /// Load key bindings from the configuration file. First, look for a new config (which can use all
+  /// the scancodes that SDL supports). If not found, try loading old config. If old config is not
+  /// found, just go with the defaults.
+  pub fn load(game_dir: &Path) -> Self {
+    // FIXME: Actually, provide some defaults for players
+    let keys = load_keys_internal(game_dir)
+      .or_else(|| load_keys_legacy(game_dir))
+      .unwrap_or_else(Default::default);
+    KeysConfig { keys }
   }
-  let file = game_dir.join("keysrel.cfg");
-  std::fs::write(file, &buf)?;
-  Ok(())
+
+  /// Save key bindings; note that we always save in our new format, using SDL keycodes.
+  pub fn save(&self, game_dir: &Path) -> Result<(), anyhow::Error> {
+    let mut buf = Vec::with_capacity(32);
+    for keys in self.keys.iter() {
+      // Note that in our format, we use different order (same as `Key` enum).
+      for key in Key::all_keys() {
+        let value = keys[key].map(|k| k as i32).unwrap_or(0);
+        buf.write_i32::<LittleEndian>(value)?;
+      }
+    }
+    let file = game_dir.join("keysrel.cfg");
+    std::fs::write(file, &buf)?;
+    Ok(())
+  }
 }
 
 /// Load key assignments from a new configuration file
-fn load_keys_internal(path: &Path) -> Option<[Keys; 4]> {
+fn load_keys_internal(path: &Path) -> Option<[KeyBindings; 4]> {
   let file = path.join("keysrel.cfg");
   let data = std::fs::read(file).ok()?;
 
@@ -97,7 +105,7 @@ fn load_keys_internal(path: &Path) -> Option<[Keys; 4]> {
   }
 
   let mut it = data.as_slice();
-  let mut keys: [Keys; 4] = Default::default();
+  let mut keys: [KeyBindings; 4] = Default::default();
   for keys in keys.iter_mut() {
     for key in Key::all_keys() {
       let value = match it.read_i32::<LittleEndian>().unwrap() {
@@ -111,7 +119,7 @@ fn load_keys_internal(path: &Path) -> Option<[Keys; 4]> {
 }
 
 /// Load key assignments from an old configuration file
-fn load_keys_legacy(path: &Path) -> Option<[Keys; 4]> {
+fn load_keys_legacy(path: &Path) -> Option<[KeyBindings; 4]> {
   let file = path.join("keys.cfg");
   let data = std::fs::read(file).ok()?;
   if data.len() != 32 {
@@ -119,7 +127,7 @@ fn load_keys_legacy(path: &Path) -> Option<[Keys; 4]> {
   }
 
   let mut it = data.as_slice();
-  let mut keys: [Keys; 4] = Default::default();
+  let mut keys: [KeyBindings; 4] = Default::default();
   for player in 0..4 {
     let keys = &mut keys[player];
     // Note that order is different from our `Key` enum, so we have to index individually
