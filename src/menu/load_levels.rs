@@ -1,6 +1,7 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
-use crate::map::{LevelInfo, MapData};
+use crate::map::{LevelInfo, LevelMap};
+use crate::menu::preview::generate_preview;
 use crate::Application;
 use rand::prelude::*;
 use sdl2::keyboard::Scancode;
@@ -256,7 +257,11 @@ impl Application<'_> {
   ) -> Result<Option<Texture<'t>>, anyhow::Error> {
     match level {
       LevelInfo::Random => Ok(None),
-      LevelInfo::File { map, .. } => Ok(Some(map.generate_preview(texture_creator, &self.levels_menu.palette)?)),
+      LevelInfo::File { map, .. } => Ok(Some(generate_preview(
+        &map,
+        texture_creator,
+        &self.levels_menu.palette,
+      )?)),
     }
   }
 }
@@ -268,7 +273,7 @@ fn find_levels(path: &Path) -> Result<Vec<Rc<LevelInfo>>, anyhow::Error> {
       let path = entry.path();
       if path.is_file() && path.extension().map_or(false, |f| f == "mne" || f == "MNE") {
         let data = std::fs::read(&path)?;
-        if let Ok(map) = MapData::from_bytes(data) {
+        if let Ok(map) = LevelMap::from_file_map(data) {
           let name = path.file_stem().unwrap().to_string_lossy().to_uppercase();
           result.push(Rc::new(LevelInfo::File { name, map }));
         }

@@ -1,7 +1,5 @@
 use num_enum::TryFromPrimitive;
-use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::render::{Texture, TextureCreator};
-use sdl2::video::WindowContext;
+use rand::Rng;
 use std::convert::TryFrom;
 use thiserror::Error;
 
@@ -9,75 +7,180 @@ use thiserror::Error;
 #[error("Invalid map format")]
 pub struct InvalidMap;
 
-pub struct MapData {
+const MAP_ROWS: usize = 45;
+const MAP_COLS: usize = 64;
+
+pub struct LevelMap {
+  /// Map values
   data: Vec<MapValue>,
+}
+
+impl std::ops::Index<usize> for LevelMap {
+  type Output = [MapValue];
+
+  fn index(&self, row: usize) -> &[MapValue] {
+    &self.data[row * MAP_COLS..][..MAP_COLS]
+  }
+}
+
+impl std::ops::IndexMut<usize> for LevelMap {
+  fn index_mut(&mut self, row: usize) -> &mut [MapValue] {
+    &mut self.data[row * MAP_COLS..][..MAP_COLS]
+  }
 }
 
 pub enum LevelInfo {
   Random,
-  File { name: String, map: MapData },
+  File { name: String, map: LevelMap },
 }
 
-impl MapData {
+impl LevelMap {
+  /// Create completely empty map
+  pub fn empty() -> LevelMap {
+    let mut data = Vec::new();
+    data.resize(MAP_ROWS * MAP_COLS, MapValue::Passage);
+    LevelMap { data }
+  }
+
   /// Create statically typed map from a vector of bytes.
-  pub fn from_bytes(data: Vec<u8>) -> Result<MapData, InvalidMap> {
+  pub fn from_file_map(external_map: Vec<u8>) -> Result<LevelMap, InvalidMap> {
     // Each map is 45 lines 66 bytes each (64 columns plus "\r\n" at the end of each row)
-    if data.len() != 2970 {
+    if external_map.len() != 2970 {
       return Err(InvalidMap);
     }
-    Ok(MapData {
-      // We could transmute here, but let's avoid all unsafe; amount of data is pretty small.
-      data: data.into_iter().map(|v| MapValue::try_from(v).unwrap()).collect(),
-    })
-  }
 
-  /// Generate image for the preview.
-  pub fn generate_preview<'t>(
-    &self,
-    texture_creator: &'t TextureCreator<WindowContext>,
-    palette: &[Color; 16],
-  ) -> Result<Texture<'t>, anyhow::Error> {
-    let mut texture = texture_creator.create_texture_static(PixelFormatEnum::RGB24, 64, 45)?;
-    let mut image = Vec::with_capacity(45 * 64 * 3);
-    for row in 0..45 {
-      for col in 0..64 {
-        // Two last bytes of the row are 0xd 0xa (newline), so 64 + 2 = 66
-        let offset = row * 66 + col;
-        let color = preview_pixel(self.data[offset]);
-        let color = palette[color];
-        image.push(color.r);
-        image.push(color.g);
-        image.push(color.b);
+    let mut data = Vec::with_capacity(MAP_ROWS * MAP_COLS);
+    for row in 0..MAP_ROWS {
+      // Two last bytes of the row are 0xd 0xa (newline), so 64 + 2 = 66
+      let row = &external_map[row * (MAP_COLS + 2)..][..MAP_COLS];
+      for value in row {
+        // We could transmute here, but let's avoid all unsafe; amount of data is pretty small.
+        data.push(MapValue::try_from(*value).unwrap());
       }
     }
-    texture.update(None, &image, 64 * 3)?;
-    Ok(texture)
-  }
-}
 
-/// Get color index for preview pixel of a given map value.
-fn preview_pixel(value: MapValue) -> usize {
-  if (value >= MapValue::Map37 && value <= MapValue::Map39)
-    || (value >= MapValue::Map41 && value <= MapValue::Map46)
-    || value == MapValue::MapA4
-    || value == MapValue::Map70
-    || value == MapValue::Map71
-  {
-    9
-  } else if value == MapValue::Map73 || (value >= MapValue::Map92 && value <= MapValue::Map9A) {
-    5
-  } else if value == MapValue::Passage
-    || value == MapValue::Map66
-    || value == MapValue::MapAF
-    || value == MapValue::Map65
-  {
-    14
-  } else if value == MapValue::MetalWall {
-    8
-  } else if value == MapValue::BioMass {
-    4
-  } else {
-    12
+    Ok(LevelMap { data })
+  }
+
+  /// Export map in the format used in map files
+  pub fn to_file_map(&self) -> Vec<u8> {
+    // Each map is 45 lines 66 bytes each (64 columns plus "\r\n" at the end of each row)
+    let mut data = Vec::with_capacity(MAP_ROWS * (MAP_COLS + 2));
+    for row in 0..MAP_ROWS {
+      for col in 0..MAP_COLS {
+        data.push(self[row][col] as u8);
+      }
+      data.push(b'\r');
+      data.push(b'\n');
+    }
+    debug_assert_eq!(data.len(), 2970);
+    data
+  }
+
+  /// Generate random stones on the map. This algorithm is close to the one used in the original
+  /// game, but not exactly the same.
+  pub fn random_stones(&mut self) {
+    let mut rng = rand::thread_rng();
+    for _ in 0..rng.gen_range(29, 40) {
+      let mut col = rng.gen_range(1, MAP_COLS - 1);
+      let mut row = rng.gen_range(1, MAP_ROWS - 1);
+      loop {
+        match rng.gen_range(0, 10) {
+          0 => {
+            self[row][col] = MapValue::Stone;
+          }
+          1 => {
+            self[row][col] = MapValue::Stone;
+            self[row + 1][col] = MapValue::Stone;
+          }
+          2 => {
+            self[row][col] = MapValue::Stone;
+            self[row - 1][col] = MapValue::Stone;
+          }
+          3 => {
+            self[row][col] = MapValue::Stone;
+            self[row][col + 1] = MapValue::Stone;
+          }
+          4 => {
+            self[row][col] = MapValue::Stone;
+            self[row - 1][col] = MapValue::Stone;
+            self[row + 1][col] = MapValue::Stone;
+          }
+          5 => {
+            self[row][col] = MapValue::Stone;
+            self[row - 1][col] = MapValue::Stone;
+            self[row + 1][col] = MapValue::Stone;
+            self[row][col - 1] = MapValue::Stone;
+          }
+          6 => {
+            self[row][col] = MapValue::Stone;
+            self[row - 1][col] = MapValue::Stone;
+            self[row + 1][col] = MapValue::Stone;
+            self[row][col - 1] = MapValue::Stone;
+            self[row][col + 1] = MapValue::Stone;
+          }
+          7 => {
+            self[row][col] = MapValue::Stone;
+            self[row - 1][col] = MapValue::Stone;
+            self[row + 1][col] = MapValue::Stone;
+            self[row][col - 1] = MapValue::Stone;
+            self[row][col + 1] = MapValue::Stone;
+          }
+          8 => {
+            self[row - 1][col] = MapValue::Stone;
+            self[row + 1][col] = MapValue::Stone;
+            self[row][col - 1] = MapValue::Stone;
+            self[row - 1][col - 1] = MapValue::Stone;
+            self[row + 1][col + 1] = MapValue::Stone;
+            self[row + 1][col - 1] = MapValue::Stone;
+            self[row - 1][col + 1] = MapValue::Stone;
+          }
+          // In original game, this seems to be never triggered as random number above is generated
+          // in the range [0; 9) (end range is excluded). We, however, allow for this branch by
+          // extending the random interval by one.
+          9 => {
+            self[row][col] = MapValue::Stone;
+            self[row - 1][col] = MapValue::Stone;
+            self[row + 1][col] = MapValue::Stone;
+            self[row][col - 1] = MapValue::Stone;
+            self[row][col + 1] = MapValue::Stone;
+            self[row - 1][col - 1] = MapValue::Stone;
+            self[row + 1][col + 1] = MapValue::Stone;
+            self[row + 1][col - 1] = MapValue::Stone;
+            self[row - 1][col + 1] = MapValue::Stone;
+          }
+          _ => {}
+        }
+
+        if rng.gen_range(0, 100) > rng.gen_range(93, 103) {
+          break;
+        }
+
+        // Note: original game uses condition `col < 1` here. We use `col < 2` so we never get too close
+        // to the border that one of the offsets above go outside of the map.
+        if col < 2 {
+          col += 1;
+        } else if col >= MAP_COLS - 2 {
+          col -= 1;
+        } else {
+          // Apply random offset -1, 0 or 1.
+          col += 1;
+          col -= rng.gen_range(0, 3);
+        }
+
+        // Note: original game uses condition `row < 1` here. We use `row < 2` so we never get too close
+        // to the border that one of the offsets above go outside of the map.
+        if row < 2 {
+          row += 1;
+        } else if row >= MAP_ROWS - 2 {
+          row -= 1;
+        } else {
+          // Apply random offset -1, 0 or 1.
+          row += 1;
+          row -= rng.gen_range(0, 3);
+        }
+      }
+    }
   }
 }
 
@@ -133,7 +236,9 @@ pub enum MapValue {
   Map2D,
   Map2E,
   Map2F,
+  /// 0x30
   Passage,
+  /// 0x31
   MetalWall,
   Map32,
   Map33,
@@ -152,7 +257,8 @@ pub enum MapValue {
   Map40,
   Map41,
   Map42,
-  Map43,
+  /// 0x43
+  Stone,
   Map44,
   Map45,
   Map46,
@@ -192,6 +298,7 @@ pub enum MapValue {
   Map68,
   Map69,
   Map6A,
+  // Exit?
   Map6B,
   Map6C,
   Map6D,

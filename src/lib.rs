@@ -14,7 +14,7 @@ mod glyphs;
 mod identities;
 pub mod images;
 mod keys;
-mod map;
+pub mod map;
 mod options;
 mod players;
 mod settings;
@@ -26,6 +26,7 @@ mod menu {
   mod main;
   mod options;
   mod players;
+  mod preview;
 }
 
 const SCREEN_WIDTH: u32 = 640;
@@ -40,7 +41,7 @@ pub fn main() -> Result<(), anyhow::Error> {
     let app = Application::init(&ctx)?;
     // To skip menus during development
     if std::env::var("DEV").is_ok() {
-      app.players_select_menu(&mut ctx, 2)?;
+      app.load_levels(&mut ctx, 2)?;
     } else {
       app.main_menu(&mut ctx)?;
     }
