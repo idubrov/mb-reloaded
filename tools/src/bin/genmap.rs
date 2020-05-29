@@ -7,6 +7,8 @@ struct Args {
   /// Map file to save result
   #[structopt(parse(from_os_str))]
   output: PathBuf,
+  #[structopt(long, short, default_value = "75")]
+  treasures: usize,
 }
 
 #[derive(Debug, Error)]
@@ -21,9 +23,9 @@ enum ToolError {
 
 /// Convert spy file into PNG
 fn main() -> Result<(), anyhow::Error> {
-  let mut map = mb_reloaded::map::LevelMap::empty();
-  map.random_stones();
   let args: Args = structopt::StructOpt::from_args();
+
+  let map = mb_reloaded::map::LevelMap::random_map(args.treasures);
   let data = map.to_file_map();
 
   write_map(&args.output, &data).map_err(|source| ToolError::OutputWriteError {

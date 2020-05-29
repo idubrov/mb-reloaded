@@ -26,14 +26,14 @@ pub fn generate_preview<'t>(
 
 /// Get color index for preview pixel of a given map value.
 fn preview_pixel(value: MapValue) -> usize {
-  if (value >= MapValue::Map37 && value <= MapValue::Map39)
-    || (value >= MapValue::Map41 && value <= MapValue::Map46)
+  if (value >= MapValue::StoneTopLeft && value <= MapValue::StoneBottomRight)
+    || (value >= MapValue::StoneBottomLeft && value <= MapValue::Stone4)
     || value == MapValue::MapA4
     || value == MapValue::Map70
     || value == MapValue::Map71
   {
     9
-  } else if value == MapValue::Map73 || (value >= MapValue::Map92 && value <= MapValue::Map9A) {
+  } else if value == MapValue::Diamond || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown) {
     5
   } else if value == MapValue::Passage
     || value == MapValue::Map66
