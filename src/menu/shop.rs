@@ -1,9 +1,12 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
+use crate::map::LevelMap;
+use crate::menu::preview::generate_preview;
 use crate::player::{ActivePlayer, Equipment, Inventory};
 use crate::Application;
 use rand::Rng;
+use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use std::borrow::Cow;
 
@@ -50,10 +53,15 @@ impl Application<'_> {
     ctx: &mut ApplicationContext,
     remaining_rounds: u16,
     free_market: bool,
+    preview_map: Option<&LevelMap>,
     left: Option<&mut ActivePlayer>,
     right: &mut ActivePlayer,
   ) -> Result<(), anyhow::Error> {
     let prices = Prices::new(free_market);
+
+    let preview_texture = preview_map
+      .map(|map| generate_preview(map, ctx.texture_creator(), &self.shop.palette))
+      .transpose()?;
 
     let palette = &self.shop.palette;
     ctx.with_render_context(|canvas| {
@@ -79,6 +87,10 @@ impl Application<'_> {
       self.font.render(canvas, 455, 58, palette[1], &item_count.to_string())?;
       self.render_items(canvas, 320, &right.inventory, &prices, Some(Equipment::SmallBomb))?;
 
+      if let Some(preview) = preview_texture {
+        let tgt = Rect::new(288, 51, 64, 45);
+        canvas.copy(&preview, None, tgt).map_err(SdlError)?;
+      }
       Ok(())
     })?;
     ctx.animate(Animation::FadeUp, 7)?;

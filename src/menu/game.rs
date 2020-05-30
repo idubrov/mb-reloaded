@@ -43,13 +43,13 @@ impl Application<'_> {
         .get(usize::from(round))
         .map(Rc::as_ref)
         .unwrap_or(&LevelInfo::Random);
-      let _level = match level {
+      let level = match level {
         LevelInfo::Random => LevelMap::random_map(settings.options.treasures),
         LevelInfo::File { map, .. } => map.clone(),
       };
       ctx.animate(Animation::FadeDown, 7)?;
 
-      if self.play_round(ctx, &mut entities, round, settings)? {
+      if self.play_round(ctx, &mut entities, round, level, settings)? {
         break;
       }
     }
@@ -61,8 +61,11 @@ impl Application<'_> {
     ctx: &mut ApplicationContext,
     players: &mut [ActivePlayer],
     round: u16,
+    mut level: LevelMap,
     settings: &GameSettings,
   ) -> Result<bool, anyhow::Error> {
+    level.generate_entrances(settings.options.players);
+
     // FIXME: generate monsters list
     // Play shop music
     self.music2.play(-1).map_err(SdlError)?;
@@ -73,7 +76,8 @@ impl Application<'_> {
     while let Some(right) = it.next() {
       let left = it.next();
       let remaining = settings.options.rounds - round;
-      self.shop(ctx, remaining, settings.options.free_market, left, right)?;
+      let preview_map = if settings.options.darkness { None } else { Some(&level) };
+      self.shop(ctx, remaining, settings.options.free_market, preview_map, left, right)?;
     }
 
     ctx.wait_input_event();

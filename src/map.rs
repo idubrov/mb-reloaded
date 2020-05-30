@@ -408,6 +408,52 @@ impl LevelMap {
     }
     (row, col)
   }
+
+  pub fn generate_entrances(&mut self, players: u8) {
+    let mut rng = rand::thread_rng();
+
+    // Top left
+    let rnd = rng.gen_range(4, 10);
+    for col in 1..=rnd {
+      self[1][col] = MapValue::Passage;
+    }
+    let rnd = rng.gen_range(4, 10);
+    for row in 1..=rnd {
+      self[row][1] = MapValue::Passage;
+    }
+
+    // Bottom right
+    let rnd = rng.gen_range(4, 10);
+    for col in 1..=rnd {
+      self[MAP_ROWS - 2][MAP_COLS - 1 - col] = MapValue::Passage;
+    }
+    let rnd = rng.gen_range(4, 10);
+    for row in 1..=rnd {
+      self[MAP_ROWS - 1 - row][MAP_COLS - 2] = MapValue::Passage;
+    }
+
+    if players > 2 {
+      // Top right
+      let rnd = rng.gen_range(4, 10);
+      for col in 1..=rnd {
+        self[1][MAP_COLS - 1 - col] = MapValue::Passage;
+      }
+      let rnd = rng.gen_range(4, 10);
+      for row in 1..=rnd {
+        self[row][MAP_COLS - 2] = MapValue::Passage;
+      }
+
+      // Bottom left
+      let rnd = rng.gen_range(4, 10);
+      for col in 1..=rnd {
+        self[MAP_ROWS - 2][col] = MapValue::Passage;
+      }
+      let rnd = rng.gen_range(4, 10);
+      for row in 1..=rnd {
+        self[MAP_ROWS - 1 - row][1] = MapValue::Passage;
+      }
+    }
+  }
 }
 
 /// Enum for all possible map values.

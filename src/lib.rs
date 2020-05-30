@@ -2,6 +2,7 @@ use crate::context::ApplicationContext;
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
+use crate::map::LevelMap;
 use crate::player::{ActivePlayer, PlayerInfo};
 use crate::settings::GameSettings;
 use sdl2::mixer::Music;
@@ -58,7 +59,8 @@ pub fn main() -> Result<(), anyhow::Error> {
         ActivePlayer::new(player1, settings.keys.keys[0], u32::from(settings.options.cash)),
         ActivePlayer::new(player2, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];
-      app.play_round(&mut ctx, &mut players, 0, &settings)?;
+      let map = LevelMap::random_map(20);
+      app.play_round(&mut ctx, &mut players, 0, map, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;
     }
