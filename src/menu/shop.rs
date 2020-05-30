@@ -166,6 +166,7 @@ impl Application<'_> {
       return Ok(());
     }
 
+    let offset = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8);
     if Some(scan) == state.entity.keys[Key::Bomb] {
       if let Some(selection) = state.selection {
         if state.entity.cash >= prices[selection] {
@@ -183,17 +184,13 @@ impl Application<'_> {
         }
       }
     } else if Some(scan) == state.entity.keys[Key::Right] {
-      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8) + 1;
-      state.selection = Equipment::try_from(idx).ok();
+      state.selection = Equipment::try_from(offset + 1).ok();
     } else if Some(scan) == state.entity.keys[Key::Left] {
-      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8).max(1) - 1;
-      state.selection = Equipment::try_from(idx).ok();
+      state.selection = Equipment::try_from(offset.max(1) - 1).ok();
     } else if Some(scan) == state.entity.keys[Key::Down] {
-      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8) + 4;
-      state.selection = Equipment::try_from(idx).ok();
+      state.selection = Equipment::try_from(offset + 4).ok();
     } else if Some(scan) == state.entity.keys[Key::Up] {
-      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8).max(4) - 4;
-      state.selection = Equipment::try_from(idx).ok();
+      state.selection = Equipment::try_from(offset.max(4) - 4).ok();
     } else {
       // Nothing to re-render, skip re-rendering
       return Ok(());
