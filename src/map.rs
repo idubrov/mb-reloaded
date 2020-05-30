@@ -28,6 +28,7 @@ const RANDOM_TREASURES: [MapValue; 13] = [
 ];
 const RANDOM_TREASURES_WEIGHTS: [usize; 13] = [18, 12, 8, 200, 200, 200, 200, 200, 180, 160, 140, 80, 3];
 
+#[derive(Clone)]
 pub struct LevelMap {
   /// Map values
   data: Vec<MapValue>,
@@ -95,7 +96,7 @@ impl LevelMap {
     data
   }
 
-  pub fn random_map(treasures: usize) -> Self {
+  pub fn random_map(treasures: u8) -> Self {
     let mut map = LevelMap::empty();
     map.generate_random_stone();
     map.finalize_map();
@@ -314,7 +315,7 @@ impl LevelMap {
   }
 
   /// Place treasures on the map
-  fn generate_treasures(&mut self, treasures: usize) {
+  fn generate_treasures(&mut self, treasures: u8) {
     let mut rng = rand::thread_rng();
     // Original game would randomize treasures, but "min treasures" is always the same as
     // "max treasures", so we don't bother calling random.
@@ -546,6 +547,7 @@ pub enum MapValue {
   Map70,
   Map71,
   Map72,
+  /// 0x73
   Diamond,
   Map74,
   Map75,

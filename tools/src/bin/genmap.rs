@@ -8,7 +8,7 @@ struct Args {
   #[structopt(parse(from_os_str))]
   output: PathBuf,
   #[structopt(long, short, default_value = "75")]
-  treasures: usize,
+  treasures: u8,
 }
 
 #[derive(Debug, Error)]

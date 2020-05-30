@@ -5,7 +5,8 @@ use crate::context::{Animation, ApplicationContext, InputEvent};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::identities::Identities;
-use crate::players::{PlayerStats, PlayersRoster};
+use crate::player::PlayerInfo;
+use crate::roster::{PlayerStats, PlayersRoster};
 use crate::Application;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -90,8 +91,12 @@ impl State {
 }
 
 impl Application<'_> {
-  /// Returns `true` if exit was selected instead of play (via F10).
-  pub fn players_select_menu(&self, ctx: &mut ApplicationContext, total_players: u8) -> Result<bool, anyhow::Error> {
+  /// Returns selected players. If F10 was pressed (exit), returns an empty list.
+  pub fn players_select_menu(
+    &self,
+    ctx: &mut ApplicationContext,
+    total_players: u8,
+  ) -> Result<Vec<PlayerInfo>, anyhow::Error> {
     let mut state = State {
       players: total_players,
       roster: PlayersRoster::load(ctx.game_dir())?,
@@ -158,10 +163,22 @@ impl Application<'_> {
 
     state.identities.save(ctx.game_dir())?;
     state.roster.save(ctx.game_dir())?;
-    // FIXME: save players.dat
-    // FIXME: save identify.dat
     ctx.animate(Animation::FadeDown, 7)?;
-    Ok(exit)
+
+    let mut selected = Vec::new();
+    if !exit {
+      selected.reserve(usize::from(total_players));
+      for idx in 0..total_players {
+        let roster_index = state.identities.players[usize::from(idx)].unwrap();
+        let name = state.roster.players[usize::from(roster_index)]
+          .as_ref()
+          .unwrap()
+          .name
+          .to_owned();
+        selected.push(PlayerInfo { roster_index, name });
+      }
+    }
+    Ok(selected)
   }
 
   fn players_name_select_menu(

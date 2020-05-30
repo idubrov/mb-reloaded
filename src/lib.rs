@@ -2,6 +2,8 @@ use crate::context::ApplicationContext;
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
+use crate::player::{ActivePlayer, PlayerInfo};
+use crate::settings::GameSettings;
 use sdl2::mixer::Music;
 use std::path::Path;
 
@@ -16,7 +18,8 @@ pub mod images;
 mod keys;
 pub mod map;
 mod options;
-mod players;
+mod player;
+mod roster;
 mod settings;
 
 mod menu {
@@ -27,6 +30,7 @@ mod menu {
   mod options;
   mod players;
   mod preview;
+  mod shop;
 }
 
 const SCREEN_WIDTH: u32 = 640;
@@ -41,7 +45,20 @@ pub fn main() -> Result<(), anyhow::Error> {
     let app = Application::init(&ctx)?;
     // To skip menus during development
     if std::env::var("DEV").is_ok() {
-      app.load_levels(&mut ctx, 2)?;
+      let settings = GameSettings::load(ctx.game_dir());
+      let player1 = PlayerInfo {
+        roster_index: 0,
+        name: "First".to_string(),
+      };
+      let player2 = PlayerInfo {
+        roster_index: 0,
+        name: "Second".to_string(),
+      };
+      let mut players = vec![
+        ActivePlayer::new(player1, settings.keys.keys[0], u32::from(settings.options.cash)),
+        ActivePlayer::new(player2, settings.keys.keys[1], u32::from(settings.options.cash)),
+      ];
+      app.play_round(&mut ctx, &mut players, 0, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;
     }
@@ -59,11 +76,12 @@ struct Application<'t> {
   keys: TexturePalette<'t>,
   codes: TexturePalette<'t>,
   players: TexturePalette<'t>,
+  shop: TexturePalette<'t>,
   glyphs: Glyphs<'t>,
   font: Font<'t>,
   music1: Music<'static>,
   // Position 465 is position of shop music.
-  _music2: Music<'static>,
+  music2: Music<'static>,
   registered: String,
 }
 
@@ -75,6 +93,7 @@ impl<'textures> Application<'textures> {
       options_menu: ctx.load_spy("OPTIONS5.SPY")?,
       levels_menu: ctx.load_spy("LEVSELEC.SPY")?,
       keys: ctx.load_spy("KEYS.SPY")?,
+      shop: ctx.load_spy("SHOPPIC.SPY")?,
       glyphs: Glyphs::from_texture(ctx.load_spy("SIKA.SPY")?),
       font: ctx.load_font("FONTTI.FON")?,
       info: [
@@ -86,7 +105,7 @@ impl<'textures> Application<'textures> {
       codes: ctx.load_spy("CODES.SPY")?,
       players: ctx.load_spy("IDENTIFW.SPY")?,
       music1: ctx.load_music("HUIPPE.S3M")?,
-      _music2: ctx.load_music("OEKU.S3M")?,
+      music2: ctx.load_music("OEKU.S3M")?,
       registered: load_registered(ctx.game_dir()).unwrap_or_else(String::new),
     })
   }

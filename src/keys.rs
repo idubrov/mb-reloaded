@@ -4,7 +4,7 @@ use sdl2::keyboard::Scancode;
 use std::convert::TryInto;
 use std::path::Path;
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct KeyBindings {
   /// Keys, indexed by `Key` enum.
   keys: [Option<Scancode>; 8],

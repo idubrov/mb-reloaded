@@ -330,15 +330,10 @@ impl Application<'_> {
         GameOption::Winner => options.win == WinCondition::ByMoney,
         _ => unreachable!(),
       };
-      let glyphs = if enabled {
-        [Glyph::RadioOn, Glyph::RadioOff]
-      } else {
-        [Glyph::RadioOff, Glyph::RadioOn]
-      };
       let (x, y) = option.radio_button_on_pos();
-      self.glyphs.render(canvas, x, y, glyphs[0])?;
+      self.glyphs.render(canvas, x, y, Glyph::Radio(enabled))?;
       let (x, y) = option.radio_button_off_pos();
-      self.glyphs.render(canvas, x, y, glyphs[1])?;
+      self.glyphs.render(canvas, x, y, Glyph::Radio(!enabled))?;
     }
 
     // Render values
