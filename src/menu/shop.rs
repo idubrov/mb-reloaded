@@ -1,18 +1,43 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
+use crate::keys::Key;
 use crate::map::LevelMap;
 use crate::menu::preview::generate_preview;
-use crate::player::{ActivePlayer, Equipment, Inventory};
+use crate::options::Options;
+use crate::player::{Equipment, PlayerEntity};
 use crate::Application;
 use rand::Rng;
+use sdl2::keyboard::Scancode;
+use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use std::borrow::Cow;
+use std::convert::TryFrom;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ShopResult {
+  ExitGame,
+  Continue,
+}
 
 #[derive(Default)]
 pub struct Prices {
   prices: [u32; Equipment::TOTAL],
+}
+
+struct PlayerState<'a> {
+  entity: &'a mut PlayerEntity,
+  /// `None` means level exit
+  selection: Option<Equipment>,
+  ready: bool,
+}
+
+struct State<'a> {
+  prices: Prices,
+  remaining_rounds: u16,
+  left: Option<PlayerState<'a>>,
+  right: PlayerState<'a>,
 }
 
 impl Prices {
@@ -48,69 +73,196 @@ impl std::ops::IndexMut<Equipment> for Prices {
 }
 
 impl Application<'_> {
+  /// Run the shop logic
   pub fn shop(
     &self,
     ctx: &mut ApplicationContext,
     remaining_rounds: u16,
-    free_market: bool,
+    options: &Options,
     preview_map: Option<&LevelMap>,
-    left: Option<&mut ActivePlayer>,
-    right: &mut ActivePlayer,
-  ) -> Result<(), anyhow::Error> {
-    let prices = Prices::new(free_market);
+    left: Option<&mut PlayerEntity>,
+    right: &mut PlayerEntity,
+  ) -> Result<ShopResult, anyhow::Error> {
+    let mut state = State {
+      prices: Prices::new(options.free_market),
+      remaining_rounds,
+      left: left.map(|entity| PlayerState {
+        entity,
+        selection: Some(Equipment::SmallBomb),
+        ready: false,
+      }),
+      right: PlayerState {
+        entity: right,
+        selection: Some(Equipment::SmallBomb),
+        ready: false,
+      },
+    };
 
-    let preview_texture = preview_map
-      .map(|map| generate_preview(map, ctx.texture_creator(), &self.shop.palette))
-      .transpose()?;
-
+    // Render an initial shop screen
+    let texture_creator = ctx.texture_creator();
     let palette = &self.shop.palette;
     ctx.with_render_context(|canvas| {
       canvas.copy(&self.shop.texture, None, None).map_err(SdlError)?;
-      self
-        .font
-        .render(canvas, 306, 120, palette[1], &remaining_rounds.to_string())?;
+      let remaining = state.remaining_rounds.to_string();
+      self.font.render(canvas, 306, 120, palette[1], &remaining)?;
 
-      if let Some(ref left) = left {
-        let power = left.drilling_power + left.base_drillingpower;
-        self.font.render(canvas, 35, 30, palette[3], &power.to_string())?;
-        self.font.render(canvas, 35, 16, palette[1], &left.player.name)?;
-        self.font.render(canvas, 35, 44, palette[5], &left.cash.to_string())?;
-        let item_count = right.inventory[Equipment::SmallBomb];
-        self.font.render(canvas, 35, 58, palette[1], &item_count.to_string())?;
-        self.render_items(canvas, 0, &left.inventory, &prices, Some(Equipment::SmallBomb))?;
+      // Background
+      if let Some(left) = &state.left {
+        self.render_player_stats(canvas, 0, left)?;
       }
-      let power = right.drilling_power + right.base_drillingpower;
-      self.font.render(canvas, 455, 30, palette[3], &power.to_string())?;
-      self.font.render(canvas, 455, 16, palette[1], &right.player.name)?;
-      self.font.render(canvas, 455, 44, palette[5], &right.cash.to_string())?;
-      let item_count = right.inventory[Equipment::SmallBomb];
-      self.font.render(canvas, 455, 58, palette[1], &item_count.to_string())?;
-      self.render_items(canvas, 320, &right.inventory, &prices, Some(Equipment::SmallBomb))?;
+      self.render_player_stats(canvas, 420, &state.right)?;
 
-      if let Some(preview) = preview_texture {
+      // All shop items
+      if let Some(left) = &state.left {
+        self.render_all_items(canvas, 0, &left, &state.prices)?;
+      }
+      let right = &state.right;
+      self.render_all_items(canvas, 320, &right, &state.prices)?;
+
+      // Preview map
+      if let Some(map) = preview_map {
         let tgt = Rect::new(288, 51, 64, 45);
+        let preview = generate_preview(map, texture_creator, &self.shop.palette)?;
         canvas.copy(&preview, None, tgt).map_err(SdlError)?;
       }
       Ok(())
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
 
+    let mut result = ShopResult::Continue;
+    while state.left.as_ref().map_or(false, |state| !state.ready) || !state.right.ready {
+      let scan = ctx.wait_key_pressed().0;
+      match scan {
+        Scancode::Escape => break,
+        Scancode::F10 => {
+          result = ShopResult::ExitGame;
+          break;
+        }
+        _ => {}
+      }
+
+      if let Some(left) = &mut state.left {
+        self.handle_player_keys(ctx, scan, true, options.selling, left, &state.prices)?;
+      }
+      self.handle_player_keys(ctx, scan, false, options.selling, &mut state.right, &state.prices)?;
+    }
+
+    Ok(result)
+  }
+
+  fn handle_player_keys(
+    &self,
+    ctx: &mut ApplicationContext,
+    scan: Scancode,
+    left: bool,
+    selling: bool,
+    state: &mut PlayerState,
+    prices: &Prices,
+  ) -> Result<(), anyhow::Error> {
+    let last_selection = state.selection;
+
+    // Left the store already
+    if state.ready {
+      return Ok(());
+    }
+
+    if Some(scan) == state.entity.keys[Key::Bomb] {
+      if let Some(selection) = state.selection {
+        if state.entity.cash >= prices[selection] {
+          state.entity.cash -= prices[selection];
+          state.entity.inventory[selection] += 1;
+        }
+      } else {
+        state.ready = true;
+      }
+    } else if Some(scan) == state.entity.keys[Key::Choose] {
+      if let Some(selection) = state.selection {
+        if selling && state.entity.inventory[selection] > 0 {
+          state.entity.cash += prices[selection];
+          state.entity.inventory[selection] -= 1;
+        }
+      }
+    } else if Some(scan) == state.entity.keys[Key::Right] {
+      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8) + 1;
+      state.selection = Equipment::try_from(idx).ok();
+    } else if Some(scan) == state.entity.keys[Key::Left] {
+      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8).max(1) - 1;
+      state.selection = Equipment::try_from(idx).ok();
+    } else if Some(scan) == state.entity.keys[Key::Down] {
+      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8) + 4;
+      state.selection = Equipment::try_from(idx).ok();
+    } else if Some(scan) == state.entity.keys[Key::Up] {
+      let idx = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8).max(4) - 4;
+      state.selection = Equipment::try_from(idx).ok();
+    } else {
+      // Nothing to re-render, skip re-rendering
+      return Ok(());
+    }
+
+    ctx.with_render_context(|canvas| {
+      let offsets = if left { (0, 0) } else { (420, 320) };
+      self.render_player_stats(canvas, offsets.0, state)?;
+
+      if last_selection != state.selection {
+        self.render_shop_slot(canvas, offsets.1, last_selection, state, prices)?;
+      }
+      self.render_shop_slot(canvas, offsets.1, state.selection, state, prices)?;
+      Ok(())
+    })?;
+    ctx.present()?;
+    Ok(())
+  }
+
+  fn render_player_stats(
+    &self,
+    canvas: &mut WindowCanvas,
+    offset_x: i32,
+    state: &PlayerState,
+  ) -> Result<(), anyhow::Error> {
+    canvas.set_draw_color(Color::BLACK);
+
+    let palette = &self.shop.palette;
+    canvas
+      .fill_rect(Rect::new(35 + offset_x, 30, 7 * 8, 8))
+      .map_err(SdlError)?;
+    canvas
+      .fill_rect(Rect::new(35 + offset_x, 44, 7 * 8, 8))
+      .map_err(SdlError)?;
+    canvas
+      .fill_rect(Rect::new(35 + offset_x, 58, 7 * 8, 8))
+      .map_err(SdlError)?;
+
+    let power = state.entity.drilling_power();
+    self
+      .font
+      .render(canvas, 35 + offset_x, 16, palette[1], &state.entity.player.name)?;
+    self
+      .font
+      .render(canvas, 35 + offset_x, 30, palette[3], &power.to_string())?;
+    self
+      .font
+      .render(canvas, 35 + offset_x, 44, palette[5], &state.entity.cash.to_string())?;
+    if let Some(item) = state.selection {
+      let item_count = state.entity.inventory[item];
+      self
+        .font
+        .render(canvas, 35 + offset_x, 58, palette[1], &item_count.to_string())?;
+    }
     Ok(())
   }
 
   /// `None` for `selected` means that level exit is selected
-  fn render_items(
+  fn render_all_items(
     &self,
     canvas: &mut WindowCanvas,
     offset_x: i32,
-    inventory: &Inventory,
+    state: &PlayerState,
     prices: &Prices,
-    selected: Option<Equipment>,
   ) -> Result<(), anyhow::Error> {
     for slot in Equipment::all_equipment() {
-      self.render_shop_slot(canvas, offset_x, Some(slot), inventory, prices, selected == Some(slot))?;
+      self.render_shop_slot(canvas, offset_x, Some(slot), state, prices)?;
     }
-    self.render_shop_slot(canvas, offset_x, None, inventory, prices, selected.is_none())?;
+    self.render_shop_slot(canvas, offset_x, None, state, prices)?;
     Ok(())
   }
 
@@ -120,9 +272,8 @@ impl Application<'_> {
     canvas: &mut WindowCanvas,
     offset_x: i32,
     slot: Option<Equipment>,
-    inventory: &Inventory,
+    state: &PlayerState,
     prices: &Prices,
-    selected: bool,
   ) -> Result<(), anyhow::Error> {
     let palette = &self.shop.palette;
 
@@ -132,10 +283,12 @@ impl Application<'_> {
 
     let pos_x = col * 64 + 32 + offset_x;
     let pos_y = row * 48 + 96;
-    self.glyphs.render(canvas, pos_x, pos_y, Glyph::ShopSlot(selected))?;
+    self
+      .glyphs
+      .render(canvas, pos_x, pos_y, Glyph::ShopSlot(state.selection == slot))?;
 
     // Render item count
-    let item_count = slot.map(|item| inventory[item] as i32).unwrap_or(0);
+    let item_count = slot.map(|item| state.entity.inventory[item] as i32).unwrap_or(0);
     if item_count != 0 {
       let pos_x = col * 64 + 88 + offset_x;
       let pos_y = row * 48 + 99;

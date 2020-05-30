@@ -2,8 +2,8 @@ use crate::context::ApplicationContext;
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
-use crate::map::LevelMap;
-use crate::player::{ActivePlayer, PlayerInfo};
+use crate::map::LevelInfo;
+use crate::player::{PlayerEntity, PlayerInfo};
 use crate::settings::GameSettings;
 use sdl2::mixer::Music;
 use std::path::Path;
@@ -18,21 +18,11 @@ mod identities;
 pub mod images;
 mod keys;
 pub mod map;
+mod menu;
 mod options;
 mod player;
 mod roster;
 mod settings;
-
-mod menu {
-  mod game;
-  mod keys;
-  mod load_levels;
-  mod main;
-  mod options;
-  mod players;
-  mod preview;
-  mod shop;
-}
 
 const SCREEN_WIDTH: u32 = 640;
 const SCREEN_HEIGHT: u32 = 480;
@@ -56,11 +46,10 @@ pub fn main() -> Result<(), anyhow::Error> {
         name: "Second".to_string(),
       };
       let mut players = vec![
-        ActivePlayer::new(player1, settings.keys.keys[0], u32::from(settings.options.cash)),
-        ActivePlayer::new(player2, settings.keys.keys[1], u32::from(settings.options.cash)),
+        PlayerEntity::new(player1, settings.keys.keys[0], u32::from(settings.options.cash)),
+        PlayerEntity::new(player2, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];
-      let map = LevelMap::random_map(20);
-      app.play_round(&mut ctx, &mut players, 0, map, &settings)?;
+      app.play_round(&mut ctx, &mut players, 0, &LevelInfo::Random, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;
     }

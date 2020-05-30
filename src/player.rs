@@ -1,4 +1,5 @@
 use crate::keys::KeyBindings;
+use crate::roster::PlayerStats;
 use num_enum::TryFromPrimitive;
 use std::convert::TryInto;
 
@@ -62,13 +63,27 @@ pub struct PlayerInfo {
 }
 
 /// Active entity in the game (player); contains player inventory and all running stats..
-pub struct ActivePlayer {
+pub struct PlayerEntity {
   pub player: PlayerInfo,
   pub keys: KeyBindings,
-  pub drilling_power: u32,
-  pub base_drillingpower: u32,
+  base_drillingpower: u32,
   pub cash: u32,
   pub inventory: Inventory,
+  pub stats: PlayerStats,
+}
+
+impl PlayerEntity {
+  pub fn drilling_power(&self) -> u32 {
+    self.base_drillingpower
+      + self.inventory[Equipment::SmallPickaxe]
+      + 3 * self.inventory[Equipment::LargePickaxe]
+      + 5 * self.inventory[Equipment::Drill]
+  }
+
+  #[allow(dead_code)]
+  pub fn total_health(&self) -> u32 {
+    100 + 100 * self.inventory[Equipment::Armor]
+  }
 }
 
 #[derive(Default)]
@@ -90,16 +105,16 @@ impl std::ops::IndexMut<Equipment> for Inventory {
   }
 }
 
-impl ActivePlayer {
+impl PlayerEntity {
   /// Create a new entity
   pub fn new(player: PlayerInfo, keys: KeyBindings, cash: u32) -> Self {
     Self {
       player,
       keys,
-      drilling_power: 0,
       base_drillingpower: 1,
       cash,
       inventory: Default::default(),
+      stats: Default::default(),
     }
   }
 }

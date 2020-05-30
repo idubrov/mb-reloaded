@@ -1,7 +1,7 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::map::{LevelInfo, LevelMap};
-use crate::player::ActivePlayer;
+use crate::player::PlayerEntity;
 use crate::settings::GameSettings;
 use crate::Application;
 use sdl2::pixels::Color;
@@ -18,7 +18,7 @@ impl Application<'_> {
 
     let mut entities = Vec::with_capacity(selected.len());
     for (idx, selected) in selected.into_iter().enumerate() {
-      entities.push(ActivePlayer::new(
+      entities.push(PlayerEntity::new(
         selected,
         settings.keys.keys[idx],
         u32::from(settings.options.cash),
@@ -43,10 +43,6 @@ impl Application<'_> {
         .get(usize::from(round))
         .map(Rc::as_ref)
         .unwrap_or(&LevelInfo::Random);
-      let level = match level {
-        LevelInfo::Random => LevelMap::random_map(settings.options.treasures),
-        LevelInfo::File { map, .. } => map.clone(),
-      };
       ctx.animate(Animation::FadeDown, 7)?;
 
       if self.play_round(ctx, &mut entities, round, level, settings)? {
@@ -59,12 +55,19 @@ impl Application<'_> {
   pub fn play_round(
     &self,
     ctx: &mut ApplicationContext,
-    players: &mut [ActivePlayer],
+    players: &mut [PlayerEntity],
     round: u16,
-    mut level: LevelMap,
+    level: &LevelInfo,
     settings: &GameSettings,
   ) -> Result<bool, anyhow::Error> {
-    level.generate_entrances(settings.options.players);
+    let level = match level {
+      LevelInfo::Random => {
+        let mut level = LevelMap::random_map(settings.options.treasures);
+        level.generate_entrances(settings.options.players);
+        level
+      }
+      LevelInfo::File { map, .. } => map.clone(),
+    };
 
     // FIXME: generate monsters list
     // Play shop music
@@ -77,7 +80,7 @@ impl Application<'_> {
       let left = it.next();
       let remaining = settings.options.rounds - round;
       let preview_map = if settings.options.darkness { None } else { Some(&level) };
-      self.shop(ctx, remaining, settings.options.free_market, preview_map, left, right)?;
+      self.shop(ctx, remaining, &settings.options, preview_map, left, right)?;
     }
 
     ctx.wait_input_event();
