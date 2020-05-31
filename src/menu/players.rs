@@ -2,10 +2,10 @@
 //!
 //! Note that this screen in particular behaves a bit differently from the original one.
 use crate::context::{Animation, ApplicationContext, InputEvent};
+use crate::entity::PlayerInfo;
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::identities::Identities;
-use crate::player::PlayerInfo;
 use crate::roster::{PlayerStats, PlayersRoster};
 use crate::Application;
 use sdl2::keyboard::Scancode;

@@ -1,6 +1,6 @@
+use crate::entity::Equipment;
 use crate::error::ApplicationError::SdlError;
 use crate::images::TexturePalette;
-use crate::player::Equipment;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 

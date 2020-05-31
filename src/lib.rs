@@ -1,9 +1,9 @@
 use crate::context::ApplicationContext;
+use crate::entity::{PlayerEntity, PlayerInfo};
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
 use crate::map::LevelInfo;
-use crate::player::{PlayerEntity, PlayerInfo};
 use crate::settings::GameSettings;
 use sdl2::mixer::Music;
 use std::path::Path;
@@ -11,6 +11,7 @@ use std::path::Path;
 mod args;
 mod audio;
 mod context;
+mod entity;
 mod error;
 pub mod fonts;
 mod glyphs;
@@ -20,7 +21,6 @@ mod keys;
 pub mod map;
 mod menu;
 mod options;
-mod player;
 mod roster;
 mod settings;
 

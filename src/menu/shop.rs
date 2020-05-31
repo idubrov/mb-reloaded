@@ -1,11 +1,11 @@
 use crate::context::{Animation, ApplicationContext};
+use crate::entity::{Equipment, PlayerEntity};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::keys::Key;
 use crate::map::LevelMap;
 use crate::menu::preview::generate_preview;
 use crate::options::Options;
-use crate::player::{Equipment, PlayerEntity};
 use crate::Application;
 use rand::Rng;
 use sdl2::keyboard::Scancode;

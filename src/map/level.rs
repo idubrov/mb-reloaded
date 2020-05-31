@@ -1,3 +1,4 @@
+use crate::map::{MAP_COLS, MAP_ROWS};
 use num_enum::TryFromPrimitive;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
@@ -7,9 +8,6 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[error("Invalid map format")]
 pub struct InvalidMap;
-
-const MAP_ROWS: usize = 45;
-const MAP_COLS: usize = 64;
 
 const RANDOM_TREASURES: [MapValue; 13] = [
   MapValue::SmallPickaxe,
@@ -541,28 +539,44 @@ pub enum MapValue {
   Boulder,
   /// 0x43
   Stone1,
-  // 0x44
+  /// 0x44
   Stone2,
-  // 0x45
+  /// 0x45
   Stone3,
-  // 0x46
+  /// 0x46
   Stone4,
-  Map47,
-  Map48,
-  Map49,
-  Map4A,
-  Map4B,
-  Map4C,
-  Map4D,
-  Map4E,
-  Map4F,
-  Map50,
-  Map51,
-  Map52,
-  Map53,
-  Map54,
-  Map55,
-  Map56,
+  /// 0x47
+  FurryRight,
+  /// 0x48
+  FurryLeft,
+  /// 0x49
+  FurryUp,
+  /// 0x4A
+  FurryDown,
+  /// 0x4B
+  GrenadierRight,
+  /// 0x4C
+  GrenadierLeft,
+  /// 0x4D
+  GrenadierUp,
+  /// 0x4E
+  GrenadierDown,
+  /// 0x4F
+  SlimeRight,
+  /// 0x50
+  SlimeLeft,
+  /// 0x51
+  SlimeUp,
+  /// 0x52
+  SlimeDown,
+  /// 0x53
+  AlienRight,
+  /// 0x54
+  AlienLeft,
+  /// 0x55
+  AlienUp,
+  /// 0x56
+  AlienDown,
   Map57,
   Map58,
   Map59,
@@ -589,9 +603,12 @@ pub enum MapValue {
   /// 0x6D
   Medikit,
   Map6E,
+  /// 0x6F
   BioMass,
-  Map70,
-  Map71,
+  /// 0x70
+  StoneLightCracked,
+  /// 0x71
+  StoneHeavyCracked,
   Map72,
   /// 0x73
   Diamond,
@@ -635,7 +652,8 @@ pub enum MapValue {
   GoldScepter,
   GoldRubin,
   GoldCrown,
-  Map9B,
+  /// 0x9B
+  Plastic,
   /// 0x9C
   Teleport,
   Map9D,
@@ -653,9 +671,12 @@ pub enum MapValue {
   MapA9,
   MapAA,
   MapAB,
-  MapAC,
-  MapAD,
-  MapAE,
+  /// 0xAC
+  Brick,
+  /// 0xAD
+  BrickLightCracked,
+  /// 0xAE
+  BrickHeavyCracked,
   MapAF,
   MapB0,
   MapB1,

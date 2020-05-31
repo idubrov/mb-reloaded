@@ -1,11 +1,24 @@
 use crate::context::{Animation, ApplicationContext};
+use crate::entity::{Equipment, MonsterEntity, PlayerEntity};
 use crate::error::ApplicationError::SdlError;
-use crate::map::{LevelInfo, LevelMap};
-use crate::player::PlayerEntity;
+use crate::map::{FogMap, HitsMap, LevelInfo, LevelMap, TimerMap};
 use crate::settings::GameSettings;
 use crate::Application;
+use rand::Rng;
 use sdl2::pixels::Color;
 use std::rc::Rc;
+
+struct RoundState {
+  #[allow(dead_code)]
+  timer: TimerMap,
+  level: LevelMap,
+  #[allow(dead_code)]
+  hits: HitsMap,
+  #[allow(dead_code)]
+  fog: FogMap,
+  #[allow(dead_code)]
+  monsters: Vec<MonsterEntity>,
+}
 
 impl Application<'_> {
   /// Play game, starting from player selection
@@ -60,7 +73,7 @@ impl Application<'_> {
     level: &LevelInfo,
     settings: &GameSettings,
   ) -> Result<bool, anyhow::Error> {
-    let level = match level {
+    let mut level = match level {
       LevelInfo::Random => {
         let mut level = LevelMap::random_map(settings.options.treasures);
         level.generate_entrances(settings.options.players);
@@ -69,7 +82,24 @@ impl Application<'_> {
       LevelInfo::File { map, .. } => map.clone(),
     };
 
-    // FIXME: generate monsters list
+    let monsters = MonsterEntity::from_map(&mut level);
+    let state = RoundState {
+      timer: TimerMap::from_level_map(&level),
+      hits: HitsMap::from_level_map(&level),
+      fog: FogMap::new(),
+      level,
+      monsters,
+    };
+    for player in players.iter_mut() {
+      player.inventory[Equipment::Armor] = 0;
+      player.accumulated_cash = 0;
+      // FIXME: facing_direction = 0
+      // FIXME: direction = 1
+      // FIXME: animation_clock = 1
+      // FIXME: field_21 = 0
+    }
+    init_players_positions(players);
+
     // Play shop music
     self.music2.play(-1).map_err(SdlError)?;
     sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
@@ -79,11 +109,49 @@ impl Application<'_> {
     while let Some(right) = it.next() {
       let left = it.next();
       let remaining = settings.options.rounds - round;
-      let preview_map = if settings.options.darkness { None } else { Some(&level) };
+      let preview_map = if settings.options.darkness {
+        None
+      } else {
+        Some(&state.level)
+      };
       self.shop(ctx, remaining, &settings.options, preview_map, left, right)?;
     }
 
     ctx.wait_input_event();
     Ok(true)
+  }
+}
+
+fn init_players_positions(players: &mut [PlayerEntity]) {
+  let mut rng = rand::thread_rng();
+
+  if players.len() == 1 {
+    players[0].pos = (15, 45);
+  } else {
+    let mut rng = rand::thread_rng();
+
+    if rng.gen::<bool>() {
+      players[0].pos = (15, 45);
+      players[1].pos = (625, 465);
+    } else {
+      players[0].pos = (625, 465);
+      players[1].pos = (15, 45);
+    }
+  }
+
+  if players.len() == 3 {
+    if rng.gen::<bool>() {
+      players[2].pos = (15, 465);
+    } else {
+      players[2].pos = (625, 45);
+    }
+  } else if players.len() == 4 {
+    if rng.gen::<bool>() {
+      players[2].pos = (15, 465);
+      players[3].pos = (625, 45);
+    } else {
+      players[2].pos = (625, 45);
+      players[3].pos = (15, 465);
+    }
   }
 }

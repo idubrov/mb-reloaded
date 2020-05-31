@@ -67,9 +67,13 @@ pub struct PlayerEntity {
   pub player: PlayerInfo,
   pub keys: KeyBindings,
   base_drillingpower: u32,
+  /// Cash accumulated in the current level
+  pub accumulated_cash: u32,
   pub cash: u32,
   pub inventory: Inventory,
   pub stats: PlayerStats,
+  /// (x, y), where each coordinate is pixel coordinate
+  pub pos: (u16, u16),
 }
 
 impl PlayerEntity {
@@ -112,9 +116,11 @@ impl PlayerEntity {
       player,
       keys,
       base_drillingpower: 1,
+      accumulated_cash: 0,
       cash,
       inventory: Default::default(),
       stats: Default::default(),
+      pos: (0, 0),
     }
   }
 }

@@ -29,8 +29,8 @@ fn preview_pixel(value: MapValue) -> usize {
   if (value >= MapValue::StoneTopLeft && value <= MapValue::StoneBottomRight)
     || (value >= MapValue::StoneBottomLeft && value <= MapValue::Stone4)
     || value == MapValue::MapA4
-    || value == MapValue::Map70
-    || value == MapValue::Map71
+    || value == MapValue::StoneLightCracked
+    || value == MapValue::StoneHeavyCracked
   {
     9
   } else if value == MapValue::Diamond || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown) {
