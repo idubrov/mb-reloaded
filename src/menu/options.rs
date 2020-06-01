@@ -331,9 +331,9 @@ impl Application<'_> {
         _ => unreachable!(),
       };
       let (x, y) = option.radio_button_on_pos();
-      self.glyphs.render(canvas, x, y, Glyph::Radio(enabled))?;
+      self.glyphs.render(canvas, x, y, Glyph::RadioButton(enabled))?;
       let (x, y) = option.radio_button_off_pos();
-      self.glyphs.render(canvas, x, y, Glyph::Radio(!enabled))?;
+      self.glyphs.render(canvas, x, y, Glyph::RadioButton(!enabled))?;
     }
 
     // Render values

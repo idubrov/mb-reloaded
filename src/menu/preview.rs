@@ -28,7 +28,7 @@ pub fn generate_preview<'t>(
 fn preview_pixel(value: MapValue) -> usize {
   if (value >= MapValue::StoneTopLeft && value <= MapValue::StoneBottomRight)
     || (value >= MapValue::StoneBottomLeft && value <= MapValue::Stone4)
-    || value == MapValue::MapA4
+    || value == MapValue::Barrel
     || value == MapValue::StoneLightCracked
     || value == MapValue::StoneHeavyCracked
   {
@@ -36,9 +36,9 @@ fn preview_pixel(value: MapValue) -> usize {
   } else if value == MapValue::Diamond || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown) {
     5
   } else if value == MapValue::Passage
-    || value == MapValue::Map66
-    || value == MapValue::MapAF
-    || value == MapValue::Map65
+    || value == MapValue::Blood
+    || value == MapValue::SlimeCorpse
+    || value == MapValue::Mine
   {
     14
   } else if value == MapValue::MetalWall {

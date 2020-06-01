@@ -105,7 +105,9 @@ impl Application<'_> {
       active_player: 4,
     };
     ctx.with_render_context(|canvas| {
-      canvas.copy(&self.players.texture, None, None).map_err(SdlError)?;
+      canvas
+        .copy(&self.select_players.texture, None, None)
+        .map_err(SdlError)?;
       self.render_left_pane(canvas, &state, state.active_player)?;
       self.render_right_pane(canvas, &state)?;
       Ok(())
@@ -278,7 +280,7 @@ impl Application<'_> {
       canvas.set_draw_color(Color::BLACK);
       let rect = Rect::new(x, y, 192, 8);
       canvas.fill_rect(rect).map_err(SdlError)?;
-      canvas.set_draw_color(self.players.palette[8]);
+      canvas.set_draw_color(self.select_players.palette[8]);
       let rect = Rect::new(x + 1, y + 6, 8, 2);
       canvas.fill_rect(rect).map_err(SdlError)?;
       Ok(())
@@ -320,10 +322,10 @@ impl Application<'_> {
         canvas.set_draw_color(Color::BLACK);
         let rect = Rect::new(x, y, 193, 8);
         canvas.fill_rect(rect).map_err(SdlError)?;
-        self.font.render(canvas, x, y, self.players.palette[1], &name)?;
+        self.font.render(canvas, x, y, self.select_players.palette[1], &name)?;
 
         if name.len() < 24 {
-          canvas.set_draw_color(self.players.palette[8]);
+          canvas.set_draw_color(self.select_players.palette[8]);
           let rect = Rect::new(x + 1 + 8 * (name.len() as i32), y + 6, 8, 2);
           canvas.fill_rect(rect).map_err(SdlError)?;
         }
@@ -371,7 +373,7 @@ impl Application<'_> {
         .fill_rect(Rect::new(119, player * 53 + 40, 26 * 8, 10))
         .map_err(SdlError)?;
       if player < i32::from(state.players) {
-        let color = self.players.palette[1];
+        let color = self.select_players.palette[1];
         if let Some(stats) =
           state.identities.players[player as usize].and_then(|idx| state.roster.players[usize::from(idx)].as_ref())
         {
@@ -387,7 +389,7 @@ impl Application<'_> {
     let rect = Rect::new(RIGHT_PANEL_X + 2, RIGHT_PANEL_Y + 1, 198, 256);
     canvas.fill_rect(rect).map_err(SdlError)?;
 
-    let palette = &self.players.palette;
+    let palette = &self.select_players.palette;
     for idx in 0..32 {
       let x = RIGHT_PANEL_X + 2;
       let y = RIGHT_PANEL_Y + (idx as i32) * 8 + 1;
@@ -421,8 +423,8 @@ impl Application<'_> {
 
   /// Render player statistics
   fn render_stats(&self, canvas: &mut WindowCanvas, stats: Option<&PlayerStats>) -> Result<(), anyhow::Error> {
-    let white = self.players.palette[1];
-    let red_color = self.players.palette[3];
+    let white = self.select_players.palette[1];
+    let red_color = self.select_players.palette[3];
 
     canvas.set_draw_color(Color::BLACK);
 
@@ -492,7 +494,7 @@ impl Application<'_> {
     let mut offset = (stats.tournaments as usize) % 34;
     let mut last_x = 367;
     let mut last_y = 457 - i32::from(stats.history[offset]);
-    let palette = &self.players.palette;
+    let palette = &self.select_players.palette;
     for _ in 1..34 {
       offset = (offset + 1) % 34;
       let value = stats.history[offset];

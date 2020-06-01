@@ -6,7 +6,7 @@ use std::convert::TryInto;
 /// Types of equipment that could be stored in an inventory and bought in the shop. Note that
 /// ordering is the same as shop ordering (left to right, top to bottom).
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 pub enum Equipment {
   SmallBomb,
   LargeBomb,

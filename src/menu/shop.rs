@@ -147,6 +147,7 @@ impl Application<'_> {
       self.handle_player_keys(ctx, scan, false, options.selling, &mut state.right, &state.prices)?;
     }
 
+    ctx.animate(Animation::FadeDown, 7)?;
     Ok(result)
   }
 
@@ -179,7 +180,8 @@ impl Application<'_> {
     } else if Some(scan) == state.entity.keys[Key::Choose] {
       if let Some(selection) = state.selection {
         if selling && state.entity.inventory[selection] > 0 {
-          state.entity.cash += prices[selection];
+          // Only return 70% of the cost
+          state.entity.cash += (7 * prices[selection] + 5) / 10;
           state.entity.inventory[selection] -= 1;
         }
       }

@@ -1,14 +1,18 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::entity::{Equipment, MonsterEntity, PlayerEntity};
 use crate::error::ApplicationError::SdlError;
-use crate::map::{FogMap, HitsMap, LevelInfo, LevelMap, TimerMap};
+use crate::glyphs::Glyph;
+use crate::map::{FogMap, HitsMap, LevelInfo, LevelMap, TimerMap, MAP_COLS, MAP_ROWS};
 use crate::settings::GameSettings;
 use crate::Application;
 use rand::Rng;
 use sdl2::pixels::Color;
+use sdl2::rect::Rect;
+use sdl2::render::WindowCanvas;
 use std::rc::Rc;
 
 struct RoundState {
+  darkness: bool,
   #[allow(dead_code)]
   timer: TimerMap,
   level: LevelMap,
@@ -50,6 +54,7 @@ impl Application<'_> {
       })?;
 
       // Generate level if necessary
+      // FIXME: for single player, load fixed set of levels
       ctx.animate(Animation::FadeUp, 7)?;
       let level = settings
         .levels
@@ -84,6 +89,7 @@ impl Application<'_> {
 
     let monsters = MonsterEntity::from_map(&mut level);
     let state = RoundState {
+      darkness: settings.options.darkness,
       timer: TimerMap::from_level_map(&level),
       hits: HitsMap::from_level_map(&level),
       fog: FogMap::new(),
@@ -105,7 +111,6 @@ impl Application<'_> {
     sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
 
     let mut it = players.iter_mut();
-
     while let Some(right) = it.next() {
       let left = it.next();
       let remaining = settings.options.rounds - round;
@@ -117,8 +122,45 @@ impl Application<'_> {
       self.shop(ctx, remaining, &settings.options, preview_map, left, right)?;
     }
 
-    ctx.wait_input_event();
+    // FIXME: start playing random music from level music
+    sdl2::mixer::Music::halt();
+
+    ctx.with_render_context(|canvas| {
+      self.render_game_screen(canvas, &state)?;
+      Ok(())
+    })?;
+    ctx.animate(Animation::FadeUp, 7)?;
+    ctx.wait_key_pressed();
     Ok(true)
+  }
+
+  fn render_game_screen(&self, canvas: &mut WindowCanvas, state: &RoundState) -> Result<(), anyhow::Error> {
+    canvas.copy(&self.players.texture, None, None).map_err(SdlError)?;
+
+    self.render_level(canvas, &state.level, state.darkness)?;
+    if state.darkness {
+      canvas.set_draw_color(Color::RED);
+      canvas.fill_rect(Rect::new(10, 40, 620, 430)).map_err(SdlError)?;
+    }
+    Ok(())
+  }
+
+  fn render_level(&self, canvas: &mut WindowCanvas, level: &LevelMap, darkness: bool) -> Result<(), anyhow::Error> {
+    if darkness {
+      // Only render borders
+      unimplemented!();
+    } else {
+      // Render everything
+      for row in 0..MAP_ROWS {
+        for col in 0..MAP_COLS {
+          let glyph = Glyph::Map(level[row][col]);
+          self
+            .glyphs
+            .render(canvas, (col * 10) as i32, (row * 10 + 30) as i32, glyph)?;
+        }
+      }
+    }
+    Ok(())
   }
 }
 
