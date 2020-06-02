@@ -1,4 +1,4 @@
-use crate::entity::Equipment;
+use crate::entity::{Direction, Equipment};
 use crate::error::ApplicationError::SdlError;
 use crate::images::TexturePalette;
 use crate::map::MapValue;
@@ -21,6 +21,8 @@ pub enum Glyph {
   Ready,
   // Glyph used to render map cell; note that not all of the glyph actually have an image
   Map(MapValue),
+  SandBorder(Direction),
+  StoneBorder(Direction),
 }
 
 impl Glyph {
@@ -46,6 +48,15 @@ impl Glyph {
         };
         (x, y, x + 9, y + 9)
       }
+      Glyph::SandBorder(Direction::Left) => (194, 98, 197, 107),
+      Glyph::SandBorder(Direction::Right) => (200, 98, 203, 107),
+      Glyph::SandBorder(Direction::Up) => (194, 109, 203, 111),
+      Glyph::SandBorder(Direction::Down) => (194, 113, 203, 115),
+
+      Glyph::StoneBorder(Direction::Left) => (148, 60, 151, 69),
+      Glyph::StoneBorder(Direction::Right) => (154, 60, 157, 69),
+      Glyph::StoneBorder(Direction::Up) => (148, 71, 157, 73),
+      Glyph::StoneBorder(Direction::Down) => (148, 75, 157, 77),
     };
     Rect::new(
       i32::from(left),

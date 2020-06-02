@@ -1,12 +1,5 @@
+use crate::entity::Direction;
 use crate::map::{LevelMap, MapValue, MAP_COLS, MAP_ROWS};
-
-#[derive(Clone, Copy)]
-pub enum Direction {
-  Right,
-  Left,
-  Up,
-  Down,
-}
 
 #[derive(Clone, Copy)]
 pub enum MonsterKind {

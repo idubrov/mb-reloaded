@@ -3,7 +3,7 @@ use crate::entity::{PlayerEntity, PlayerInfo};
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
-use crate::map::LevelInfo;
+use crate::map::{LevelInfo, LevelMap};
 use crate::settings::GameSettings;
 use sdl2::mixer::Music;
 use std::path::Path;
@@ -36,6 +36,12 @@ pub fn main() -> Result<(), anyhow::Error> {
     let app = Application::init(&ctx)?;
     // To skip menus during development
     if std::env::var("DEV").is_ok() {
+      let data = std::fs::read("../minebomb/CARAMBA.MNE")?;
+      let map = LevelMap::from_file_map(data)?;
+      let level = LevelInfo::File {
+        name: "CARAMBA".into(),
+        map,
+      };
       let settings = GameSettings::load(ctx.game_dir());
       let player1 = PlayerInfo {
         roster_index: 0,
@@ -49,7 +55,7 @@ pub fn main() -> Result<(), anyhow::Error> {
         PlayerEntity::new(player1, settings.keys.keys[0], u32::from(settings.options.cash)),
         PlayerEntity::new(player2, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];
-      app.play_round(&mut ctx, &mut players, 0, &LevelInfo::Random, &settings)?;
+      app.play_round(&mut ctx, &mut players, 0, &level, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;
     }

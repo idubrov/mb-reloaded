@@ -1,3 +1,4 @@
+use crate::entity::Direction;
 use crate::map::{MAP_COLS, MAP_ROWS};
 use num_enum::TryFromPrimitive;
 use rand::distributions::WeightedIndex;
@@ -196,7 +197,7 @@ impl LevelMap {
     }
   }
 
-  fn cursor(&self, row: usize, col: usize) -> Cursor {
+  pub fn cursor(&self, row: usize, col: usize) -> Cursor {
     Cursor { map: self, row, col }
   }
 
@@ -212,10 +213,10 @@ impl LevelMap {
       for col in 1..MAP_COLS - 1 {
         let cursor = self.cursor(row, col);
         if cursor.is_stone_like()
-          && cursor.right() == MapValue::Passage
-          && cursor.left() == MapValue::Passage
-          && cursor.top() == MapValue::Passage
-          && cursor.bottom() == MapValue::Passage
+          && cursor[Direction::Right] == MapValue::Passage
+          && cursor[Direction::Left] == MapValue::Passage
+          && cursor[Direction::Up] == MapValue::Passage
+          && cursor[Direction::Down] == MapValue::Passage
         {
           self[row][col] = MapValue::Boulder;
         }
@@ -227,28 +228,28 @@ impl LevelMap {
       for col in 1..MAP_COLS - 1 {
         if self[row][col] == MapValue::Passage {
           let cursor = self.cursor(row, col);
-          if cursor.right() == MapValue::Stone1
-            && cursor.bottom() == MapValue::Stone1
-            && cursor.left() == MapValue::Passage
-            && cursor.top() == MapValue::Passage
+          if cursor[Direction::Right] == MapValue::Stone1
+            && cursor[Direction::Down] == MapValue::Stone1
+            && cursor[Direction::Left] == MapValue::Passage
+            && cursor[Direction::Up] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopLeft;
-          } else if cursor.right() == MapValue::Stone1
-            && cursor.bottom() == MapValue::Passage
-            && cursor.left() == MapValue::Passage
-            && cursor.top() == MapValue::Stone1
+          } else if cursor[Direction::Right] == MapValue::Stone1
+            && cursor[Direction::Down] == MapValue::Passage
+            && cursor[Direction::Left] == MapValue::Passage
+            && cursor[Direction::Up] == MapValue::Stone1
           {
             self[row][col] = MapValue::StoneBottomLeft;
-          } else if cursor.right() == MapValue::Passage
-            && cursor.bottom() == MapValue::Stone1
-            && cursor.left() == MapValue::Stone1
-            && cursor.top() == MapValue::Passage
+          } else if cursor[Direction::Right] == MapValue::Passage
+            && cursor[Direction::Down] == MapValue::Stone1
+            && cursor[Direction::Left] == MapValue::Stone1
+            && cursor[Direction::Up] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopRight;
-          } else if cursor.right() == MapValue::Passage
-            && cursor.bottom() == MapValue::Passage
-            && cursor.left() == MapValue::Stone1
-            && cursor.top() == MapValue::Stone1
+          } else if cursor[Direction::Right] == MapValue::Passage
+            && cursor[Direction::Down] == MapValue::Passage
+            && cursor[Direction::Left] == MapValue::Stone1
+            && cursor[Direction::Up] == MapValue::Stone1
           {
             self[row][col] = MapValue::StoneBottomRight;
           }
@@ -261,28 +262,28 @@ impl LevelMap {
       for col in 1..MAP_COLS - 1 {
         let cursor = self.cursor(row, col);
         if self[row][col] == MapValue::Stone1 {
-          if cursor.right().is_stone_like()
-            && cursor.bottom().is_stone_like()
-            && cursor.left() == MapValue::Passage
-            && cursor.top() == MapValue::Passage
+          if cursor[Direction::Right].is_stone_like()
+            && cursor[Direction::Down].is_stone_like()
+            && cursor[Direction::Left] == MapValue::Passage
+            && cursor[Direction::Up] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopLeft;
-          } else if cursor.right().is_stone_like()
-            && cursor.bottom() == MapValue::Passage
-            && cursor.left() == MapValue::Passage
-            && cursor.top().is_stone_like()
+          } else if cursor[Direction::Right].is_stone_like()
+            && cursor[Direction::Down] == MapValue::Passage
+            && cursor[Direction::Left] == MapValue::Passage
+            && cursor[Direction::Up].is_stone_like()
           {
             self[row][col] = MapValue::StoneBottomLeft;
-          } else if cursor.right() == MapValue::Passage
-            && cursor.bottom().is_stone_like()
-            && cursor.left().is_stone_like()
-            && cursor.top() == MapValue::Passage
+          } else if cursor[Direction::Right] == MapValue::Passage
+            && cursor[Direction::Down].is_stone_like()
+            && cursor[Direction::Left].is_stone_like()
+            && cursor[Direction::Up] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopRight;
-          } else if cursor.right() == MapValue::Passage
-            && cursor.bottom() == MapValue::Passage
-            && cursor.left().is_stone_like()
-            && cursor.top().is_stone_like()
+          } else if cursor[Direction::Right] == MapValue::Passage
+            && cursor[Direction::Down] == MapValue::Passage
+            && cursor[Direction::Left].is_stone_like()
+            && cursor[Direction::Up].is_stone_like()
           {
             self[row][col] = MapValue::StoneBottomRight;
           }
@@ -749,7 +750,8 @@ impl MapValue {
   }
 }
 
-struct Cursor<'m> {
+#[derive(Clone, Copy)]
+pub struct Cursor<'m> {
   map: &'m LevelMap,
   row: usize,
   col: usize,
@@ -763,21 +765,17 @@ impl std::ops::Deref for Cursor<'_> {
   }
 }
 
-impl Cursor<'_> {
-  fn left(&self) -> MapValue {
-    self.map[self.row][self.col - 1]
-  }
+impl std::ops::Index<Direction> for Cursor<'_> {
+  type Output = MapValue;
 
-  fn right(&self) -> MapValue {
-    self.map[self.row][self.col + 1]
-  }
-
-  fn top(&self) -> MapValue {
-    self.map[self.row - 1][self.col]
-  }
-
-  fn bottom(&self) -> MapValue {
-    self.map[self.row + 1][self.col]
+  fn index(&self, dir: Direction) -> &Self::Output {
+    let (row, col) = match dir {
+      Direction::Left => (self.row, self.col - 1),
+      Direction::Right => (self.row, self.col + 1),
+      Direction::Up => (self.row - 1, self.col),
+      Direction::Down => (self.row + 1, self.col),
+    };
+    &self.map[row][col]
   }
 }
 
