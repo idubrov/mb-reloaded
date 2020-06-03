@@ -10,6 +10,7 @@ use std::path::Path;
 
 mod args;
 mod audio;
+pub mod bitmap;
 mod context;
 mod entity;
 mod error;
@@ -51,9 +52,19 @@ pub fn main() -> Result<(), anyhow::Error> {
         roster_index: 0,
         name: "Second".to_string(),
       };
+      let player3 = PlayerInfo {
+        roster_index: 0,
+        name: "Third".to_string(),
+      };
+      let player4 = PlayerInfo {
+        roster_index: 0,
+        name: "Fourth".to_string(),
+      };
       let mut players = vec![
         PlayerEntity::new(player1, settings.keys.keys[0], u32::from(settings.options.cash)),
         PlayerEntity::new(player2, settings.keys.keys[1], u32::from(settings.options.cash)),
+        PlayerEntity::new(player3, settings.keys.keys[1], u32::from(settings.options.cash)),
+        PlayerEntity::new(player4, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];
       app.play_round(&mut ctx, &mut players, 0, &level, &settings)?;
     } else {

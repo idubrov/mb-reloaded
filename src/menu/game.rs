@@ -1,3 +1,5 @@
+use crate::bitmap;
+use crate::bitmap::Bitmap;
 use crate::context::{Animation, ApplicationContext};
 use crate::entity::{Direction, Equipment, MonsterEntity, PlayerEntity};
 use crate::error::ApplicationError::SdlError;
@@ -145,21 +147,14 @@ impl Application<'_> {
       canvas.fill_rect(Rect::new(10, 40, 620, 430)).map_err(SdlError)?;
     }
 
-    // Erase extra players
-    let players = state.players.len() as u16;
-    if players < 4 {
-      let rect = Rect::new(i32::from(players) * 160, 0, u32::from(4 - players) * 160, 30);
-      canvas.set_draw_color(Color::BLACK);
-      canvas.fill_rect(rect).map_err(SdlError)?;
-    }
-
+    self.render_players_info(canvas, state.players)?;
     // FIXME: render player selection
     // FIXME: render drilling power
     // FIXME: render player names
     // FIXME: render cash
     // FIXME: render selected item count
 
-    if players == 1 {
+    if state.players.len() == 1 {
       // FIXME: render lives
     } else {
       // Time bar
@@ -197,8 +192,7 @@ impl Application<'_> {
       // Render dirt borders
       for row in 1..MAP_ROWS - 1 {
         for col in 1..MAP_COLS - 1 {
-          let value = level[row][col] as u8;
-          if DIRT_BORDER_BITMAP[usize::from(value / 8)] & (1 << (value & 7)) != 0 {
+          if DIRT_BORDER_BITMAP[level[row][col] as usize] {
             self.render_dirt_border(canvas, level, row, col)?;
           }
         }
@@ -248,6 +242,53 @@ impl Application<'_> {
     }
     Ok(())
   }
+
+  fn render_players_info(&self, canvas: &mut WindowCanvas, players: &[PlayerEntity]) -> Result<(), anyhow::Error> {
+    // Erase extra players
+    let players_len = players.len() as u16;
+    if players_len < 4 {
+      let rect = Rect::new(i32::from(players_len) * 160, 0, u32::from(4 - players_len) * 160, 30);
+      canvas.set_draw_color(Color::BLACK);
+      canvas.fill_rect(rect).map_err(SdlError)?;
+    }
+
+    // Current weapon selection
+    const PLAYER_X: [i32; 4] = [12, 174, 337, 500];
+    let palette = &self.players.palette;
+    for (player, pos_x) in players.iter().zip(PLAYER_X.iter()) {
+      self
+        .glyphs
+        .render(canvas, *pos_x, 0, Glyph::Selection(player.selection))?;
+      self.font.render(
+        canvas,
+        *pos_x,
+        0,
+        palette[1],
+        &player.inventory[player.selection].to_string(),
+      )?;
+
+      //canvas.set_draw_color(Color::BLACK);
+      //canvas.fill_rect(Rect::new(pos_x + 50, 11, 40, 8)).map_err(SdlError)?;
+      self.font.render(
+        canvas,
+        pos_x + 50,
+        11,
+        palette[3],
+        &format!("{}", player.drilling_power()),
+      )?;
+      self
+        .font
+        .render(canvas, pos_x + 36, 1, palette[1], &player.player.name)?;
+
+      //canvas.set_draw_color(Color::BLACK);
+      //canvas.fill_rect(Rect::new(pos_x + 50, 21, 40, 8)).map_err(SdlError)?;
+      self
+        .font
+        .render(canvas, pos_x + 50, 21, palette[5], &player.cash().to_string())?;
+    }
+
+    Ok(())
+  }
 }
 
 fn border_offset(dir: Direction) -> (i32, i32) {
@@ -293,8 +334,8 @@ fn init_players_positions(players: &mut [PlayerEntity]) {
   }
 }
 
-/// Bitmap of which map values are exposing border of surrounding dirt and stones.
-const DIRT_BORDER_BITMAP: [u8; 32] = [
+/// Bitmap of which map values are exposing border of surrounding dirt and stones
+const DIRT_BORDER_BITMAP: Bitmap<[u8; 32]> = bitmap!([
   0b0000_0000,
   0b0000_0000,
   0b0000_0000,
@@ -327,4 +368,4 @@ const DIRT_BORDER_BITMAP: [u8; 32] = [
   0b0000_0000,
   0b0000_0000,
   0b0000_0000,
-];
+]);

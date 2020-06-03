@@ -72,6 +72,7 @@ pub struct PlayerEntity {
   pub cash: u32,
   pub inventory: Inventory,
   pub stats: PlayerStats,
+  pub selection: Equipment,
   /// (x, y), where each coordinate is pixel coordinate
   pub pos: (u16, u16),
 }
@@ -82,6 +83,10 @@ impl PlayerEntity {
       + self.inventory[Equipment::SmallPickaxe]
       + 3 * self.inventory[Equipment::LargePickaxe]
       + 5 * self.inventory[Equipment::Drill]
+  }
+
+  pub fn cash(&self) -> u32 {
+    self.accumulated_cash + self.cash
   }
 
   #[allow(dead_code)]
@@ -120,6 +125,7 @@ impl PlayerEntity {
       cash,
       inventory: Default::default(),
       stats: Default::default(),
+      selection: Equipment::SmallBomb,
       pos: (0, 0),
     }
   }
