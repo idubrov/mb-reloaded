@@ -145,17 +145,16 @@ impl Application<'_> {
     if state.darkness {
       canvas.set_draw_color(Color::BLACK);
       canvas.fill_rect(Rect::new(10, 40, 620, 430)).map_err(SdlError)?;
+    } else {
+      // Render monsters
+      for monster in &state.monsters {
+        self.render_monster(canvas, monster)?;
+      }
     }
 
     self.render_players_info(canvas, state.players)?;
-    // FIXME: render player selection
-    // FIXME: render drilling power
-    // FIXME: render player names
-    // FIXME: render cash
-    // FIXME: render selected item count
-
     if state.players.len() == 1 {
-      // FIXME: render lives
+      unimplemented!("render lives");
     } else {
       // Time bar
       canvas.set_draw_color(self.players.palette[6]);
@@ -287,6 +286,16 @@ impl Application<'_> {
         .render(canvas, pos_x + 50, 21, palette[5], &player.cash().to_string())?;
     }
 
+    Ok(())
+  }
+
+  fn render_monster(&self, canvas: &mut WindowCanvas, monster: &MonsterEntity) -> Result<(), anyhow::Error> {
+    // FIXME: handle moving directions, too
+    let pos_x = monster.pos.x - 5;
+    let pos_y = monster.pos.y - 5;
+    self
+      .glyphs
+      .render(canvas, pos_x, pos_y, Glyph::Monster(monster.kind, monster.facing, 0))?;
     Ok(())
   }
 }

@@ -37,7 +37,7 @@ pub fn main() -> Result<(), anyhow::Error> {
     let app = Application::init(&ctx)?;
     // To skip menus during development
     if std::env::var("DEV").is_ok() {
-      let data = std::fs::read("../minebomb/CARAMBA.MNE")?;
+      let data = std::fs::read("../minebomb/AAA.MNE")?;
       let map = LevelMap::from_file_map(data)?;
       let level = LevelInfo::File {
         name: "CARAMBA".into(),

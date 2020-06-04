@@ -33,16 +33,24 @@ impl MonsterKind {
 const TEMPLATE: MonsterEntity = MonsterEntity {
   kind: MonsterKind::Furry,
   facing: Direction::Right,
+  moving: None,
   health: 0,
-  pos: (0, 0),
+  pos: Position { x: 0, y: 0 },
 };
+
+#[derive(Clone, Copy)]
+pub struct Position {
+  pub x: i32,
+  pub y: i32,
+}
 
 #[derive(Clone)]
 pub struct MonsterEntity {
   pub kind: MonsterKind,
   pub facing: Direction,
+  pub moving: Option<Direction>,
   pub health: u16,
-  pub pos: (u16, u16),
+  pub pos: Position,
 }
 
 impl MonsterEntity {
@@ -63,7 +71,10 @@ impl MonsterEntity {
 
         let mut entity = MonsterEntity {
           kind,
-          pos: ((col * 10 + 5) as u16, (row * 10 + 35) as u16),
+          pos: Position {
+            x: (col * 10 + 5) as i32,
+            y: (row * 10 + 35) as i32,
+          },
           health: kind.initial_health(),
           ..TEMPLATE
         };

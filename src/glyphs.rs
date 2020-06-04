@@ -1,4 +1,4 @@
-use crate::entity::{Direction, Equipment};
+use crate::entity::{Direction, Equipment, MonsterKind};
 use crate::error::ApplicationError::SdlError;
 use crate::images::TexturePalette;
 use crate::map::MapValue;
@@ -23,6 +23,7 @@ pub enum Glyph {
   Map(MapValue),
   SandBorder(Direction),
   StoneBorder(Direction),
+  Monster(MonsterKind, Direction, u8),
 }
 
 impl Glyph {
@@ -57,6 +58,27 @@ impl Glyph {
       Glyph::StoneBorder(Direction::Right) => (154, 60, 157, 69),
       Glyph::StoneBorder(Direction::Up) => (148, 71, 157, 73),
       Glyph::StoneBorder(Direction::Down) => (148, 75, 157, 77),
+
+      // Players:
+      // player1 => (160, 10)
+      // player2 => (160, 0)
+      // player3 => (160, 30)
+      // player4 => (160, 40)
+      // player1 digging => (160, 200)
+      // player2 digging => (0, 200)
+      // player3 digging => (0, 210)
+      // player4 digging => (160, 210)
+      // Monsters
+      Glyph::Monster(kind, dir, anim) => {
+        let (pos_x, pos_y) = match kind {
+          MonsterKind::Furry => (160, 50),
+          MonsterKind::Grenadier => (160, 60),
+          MonsterKind::Slime => (160, 70),
+          MonsterKind::Alien => (0, 80),
+        };
+        let pos_x = pos_x + (dir as i16) * 40 + i16::from(anim) * 10;
+        (pos_x, pos_y, pos_x + 9, pos_y + 9)
+      }
     };
     Rect::new(
       i32::from(left),
@@ -92,7 +114,7 @@ impl<'t> Glyphs<'t> {
 
 /// Table for mapping equipment type to texture coordinates. Note that this list must be consistent
 /// with the `Equipment` enum.
-const EQUIPMENT_GLYPHS: [(u16, u16); Equipment::TOTAL] = [
+const EQUIPMENT_GLYPHS: [(i16, i16); Equipment::TOTAL] = [
   (0, 170),
   (30, 170),
   (60, 170),
@@ -126,9 +148,9 @@ const EQUIPMENT_GLYPHS: [(u16, u16); Equipment::TOTAL] = [
 ///  this could be useful for editor later
 
 /// Map unmapped to "item 182" image.
-const UNMAPPED: (u16, u16) = (50, 70);
+const UNMAPPED: (i16, i16) = (50, 70);
 /// Note: this mapping is offset by 0x30 and ends at 0xB6
-const MAP_GLYPHS: [(u16, u16); 135] = [
+const MAP_GLYPHS: [(i16, i16); 135] = [
   (0, 0),
   (10, 0),
   (20, 0),

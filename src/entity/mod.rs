@@ -1,20 +1,21 @@
 mod monster;
 mod player;
 
-pub use monster::MonsterEntity;
+pub use monster::{MonsterEntity, MonsterKind};
 pub use player::{Equipment, Inventory, PlayerEntity, PlayerInfo};
 
 #[derive(Clone, Copy)]
+#[repr(u8)]
 pub enum Direction {
-  Left,
   Right,
+  Left,
   Up,
   Down,
 }
 
 impl Direction {
   pub fn all() -> impl Iterator<Item = Direction> {
-    [Direction::Left, Direction::Right, Direction::Up, Direction::Down]
+    [Direction::Right, Direction::Left, Direction::Up, Direction::Down]
       .iter()
       .copied()
   }
