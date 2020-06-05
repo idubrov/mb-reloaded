@@ -8,5 +8,5 @@ pub const MAP_COLS: usize = 64;
 
 pub use fog::FogMap;
 pub use hits::HitsMap;
-pub use level::{InvalidMap, LevelInfo, LevelMap, MapValue};
+pub use level::{Cursor, InvalidMap, LevelInfo, LevelMap, MapValue};
 pub use timer::TimerMap;

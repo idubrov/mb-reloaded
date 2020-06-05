@@ -44,6 +44,30 @@ pub struct Position {
   pub y: i32,
 }
 
+impl Position {
+  /// Adjust coordinate to step in a given direction
+  pub fn step(&mut self, dir: Direction) {
+    match dir {
+      Direction::Left => self.x -= 1,
+      Direction::Right => self.x += 1,
+      Direction::Up => self.y -= 1,
+      Direction::Down => self.y += 1,
+    }
+  }
+
+  /// Center the coordinate orthogonal to the moving direction
+  pub fn center_orthogonal(&mut self, dir: Direction) {
+    match dir {
+      Direction::Left | Direction::Right => {
+        self.y = (self.y / 10) * 10 + 5;
+      }
+      Direction::Up | Direction::Down => {
+        self.x = (self.x / 10) * 10 + 5;
+      }
+    }
+  }
+}
+
 #[derive(Clone)]
 pub struct MonsterEntity {
   pub kind: MonsterKind,

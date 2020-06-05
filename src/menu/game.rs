@@ -4,7 +4,7 @@ use crate::context::{Animation, ApplicationContext};
 use crate::entity::{Direction, Equipment, MonsterEntity, PlayerEntity};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
-use crate::map::{FogMap, HitsMap, LevelInfo, LevelMap, MapValue, TimerMap, MAP_COLS, MAP_ROWS};
+use crate::map::{Cursor, FogMap, HitsMap, LevelInfo, LevelMap, MapValue, TimerMap, MAP_COLS, MAP_ROWS};
 use crate::settings::GameSettings;
 use crate::Application;
 use rand::Rng;
@@ -13,16 +13,17 @@ use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use std::rc::Rc;
 
-struct RoundState<'p> {
-  darkness: bool,
+struct Maps {
   #[allow(dead_code)]
   timer: TimerMap,
   level: LevelMap,
-  #[allow(dead_code)]
   hits: HitsMap,
-  #[allow(dead_code)]
   fog: FogMap,
-  #[allow(dead_code)]
+}
+
+struct RoundState<'p> {
+  darkness: bool,
+  maps: Maps,
   monsters: Vec<MonsterEntity>,
   players: &'p mut [PlayerEntity],
 }
@@ -91,12 +92,14 @@ impl Application<'_> {
     };
 
     let monsters = MonsterEntity::from_map(&mut level);
-    let state = RoundState {
+    let mut state = RoundState {
       darkness: settings.options.darkness,
-      timer: TimerMap::from_level_map(&level),
-      hits: HitsMap::from_level_map(&level),
-      fog: FogMap::new(),
-      level,
+      maps: Maps {
+        timer: TimerMap::from_level_map(&level),
+        hits: HitsMap::from_level_map(&level),
+        fog: FogMap::new(),
+        level,
+      },
       monsters,
       players,
     };
@@ -121,7 +124,7 @@ impl Application<'_> {
       let preview_map = if settings.options.darkness {
         None
       } else {
-        Some(&state.level)
+        Some(&state.maps.level)
       };
       self.shop(ctx, remaining, &settings.options, preview_map, left, right)?;
     }
@@ -135,13 +138,20 @@ impl Application<'_> {
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
     ctx.wait_key_pressed();
+
+    ctx.with_render_context(|canvas| {
+      for monster in &mut state.monsters {
+        self.animate_monster(canvas, monster, &mut state.maps)?;
+      }
+      Ok(())
+    })?;
     Ok(true)
   }
 
   fn render_game_screen(&self, canvas: &mut WindowCanvas, state: &RoundState) -> Result<(), anyhow::Error> {
     canvas.copy(&self.players.texture, None, None).map_err(SdlError)?;
 
-    self.render_level(canvas, &state.level, state.darkness)?;
+    self.render_level(canvas, &state.maps.level, state.darkness)?;
     if state.darkness {
       canvas.set_draw_color(Color::BLACK);
       canvas.fill_rect(Rect::new(10, 40, 620, 430)).map_err(SdlError)?;
@@ -213,7 +223,7 @@ impl Application<'_> {
 
     // Dirt
     for dir in Direction::all() {
-      let value = level.cursor(row, col)[dir];
+      let value = level[Cursor::new(row, col).to(dir)];
       let is_corner = match dir {
         Direction::Right if value == MapValue::StoneTopLeft || value == MapValue::StoneBottomLeft => true,
         Direction::Left if value == MapValue::StoneTopRight || value == MapValue::StoneBottomRight => true,
@@ -231,7 +241,7 @@ impl Application<'_> {
 
     // Stone
     for dir in Direction::all() {
-      let value = level.cursor(row, col)[dir];
+      let value = level[Cursor::new(row, col).to(dir)];
       if value >= MapValue::Stone1 && value <= MapValue::Stone4 {
         let (dx, dy) = border_offset(dir);
         self
@@ -297,6 +307,101 @@ impl Application<'_> {
       .glyphs
       .render(canvas, pos_x, pos_y, Glyph::Monster(monster.kind, monster.facing, 0))?;
     Ok(())
+  }
+
+  fn animate_monster(
+    &self,
+    canvas: &mut WindowCanvas,
+    monster: &mut MonsterEntity,
+    maps: &mut Maps,
+  ) -> Result<(), anyhow::Error> {
+    if let Some(direction) = monster.moving {
+      let row = ((monster.pos.y - 30) / 10) as usize;
+      let col = (monster.pos.x / 10) as usize;
+      let delta_x = monster.pos.x % 10;
+      let delta_y = monster.pos.y % 10;
+      let cursor = Cursor::new(row as usize, col as usize);
+
+      let (delta_dir, delta_orthogonal, finishing_move, can_move) = match direction {
+        Direction::Left => (delta_x, delta_y, delta_x > 5, monster.pos.x > 5),
+        Direction::Right => (delta_x, delta_y, delta_x < 5, monster.pos.x < 635),
+        Direction::Up => (delta_y, delta_x, delta_y > 5, monster.pos.y > 35),
+        Direction::Down => (delta_y, delta_x, delta_y < 5, monster.pos.x < 475),
+      };
+
+      // Vertically centered enough to be moving in the current direction
+      let is_moving = can_move && delta_orthogonal > 3 && delta_orthogonal < 6;
+      let map_value = maps.level[cursor.to(direction)];
+      // Either finishing move into the cell or cell to the left is passable
+      if is_moving
+        && (finishing_move
+          || map_value == MapValue::Passage
+          || map_value == MapValue::Blood
+          || map_value == MapValue::SlimeCorpse)
+      {
+        monster.pos.step(direction);
+      }
+
+      if delta_orthogonal != 5 {
+        // Center our position in orthogonal direction
+        monster.pos.center_orthogonal(direction);
+
+        // Need to redraw cell orthogonal to the moving direction if we are re-centering.
+        let cur = match direction {
+          Direction::Left | Direction::Right if delta_orthogonal > 5 => cursor.to(Direction::Down),
+          Direction::Left | Direction::Right => cursor.to(Direction::Up),
+          Direction::Up | Direction::Down if delta_orthogonal > 5 => cursor.to(Direction::Right),
+          Direction::Up | Direction::Down => cursor.to(Direction::Left),
+        };
+        self.reveal_on_movement(canvas, cur, &maps.level, &mut maps.fog)?;
+      }
+
+      // We are centered in the direction we are going -- hit the map!
+      if delta_dir == 5 {
+        self.hit_map(monster, cursor.to(direction), &mut maps.hits);
+      }
+
+      // Finishing moving from adjacent square -- render that square
+      if finishing_move {
+        self.reveal_on_movement(canvas, cursor.to(direction.reverse()), &maps.level, &mut maps.fog)?;
+      }
+
+      // Check if we need to show animation with pick axe or without
+      let pickaxe = delta_dir == 5
+        && ((map_value >= MapValue::StoneTopLeft && map_value <= MapValue::StoneBottomRight)
+          || map_value == MapValue::StoneBottomLeft
+          || (map_value >= MapValue::Stone1 && map_value <= MapValue::Stone4)
+          || (map_value >= MapValue::StoneLightCracked && map_value <= MapValue::StoneHeavyCracked)
+          || (map_value >= MapValue::Brick && map_value <= MapValue::BrickHeavyCracked));
+
+      self.animate_digging(canvas, monster, pickaxe)?;
+    } else {
+      self.render_monster(canvas, monster)?;
+    }
+    Ok(())
+  }
+
+  fn hit_map(&self, _monster: &MonsterEntity, _cursor: Cursor, _map: &mut HitsMap) {
+    unimplemented!()
+  }
+
+  fn animate_digging(
+    &self,
+    _canvas: &mut WindowCanvas,
+    _monster: &MonsterEntity,
+    _pickaxe: bool,
+  ) -> Result<(), anyhow::Error> {
+    unimplemented!()
+  }
+
+  fn reveal_on_movement(
+    &self,
+    _canvas: &mut WindowCanvas,
+    _cursor: Cursor,
+    _level: &LevelMap,
+    _fog: &mut FogMap,
+  ) -> Result<(), anyhow::Error> {
+    unimplemented!()
   }
 }
 

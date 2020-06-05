@@ -47,6 +47,14 @@ impl std::ops::IndexMut<usize> for LevelMap {
   }
 }
 
+impl std::ops::Index<Cursor> for LevelMap {
+  type Output = MapValue;
+
+  fn index(&self, cursor: Cursor) -> &MapValue {
+    &self[cursor.row][cursor.col]
+  }
+}
+
 pub enum LevelInfo {
   Random,
   File { name: String, map: LevelMap },
@@ -197,10 +205,6 @@ impl LevelMap {
     }
   }
 
-  pub fn cursor(&self, row: usize, col: usize) -> Cursor {
-    Cursor { map: self, row, col }
-  }
-
   /// Finalize stone corners, randomize stones and sand
   ///
   /// This function in particular was rewritten a bit compared to the original one (minor changes
@@ -211,12 +215,12 @@ impl LevelMap {
     // Step 1: replace lonely stones with boulders
     for row in 1..MAP_ROWS - 1 {
       for col in 1..MAP_COLS - 1 {
-        let cursor = self.cursor(row, col);
-        if cursor.is_stone_like()
-          && cursor[Direction::Right] == MapValue::Passage
-          && cursor[Direction::Left] == MapValue::Passage
-          && cursor[Direction::Up] == MapValue::Passage
-          && cursor[Direction::Down] == MapValue::Passage
+        let cursor = Cursor::new(row, col);
+        if self[cursor].is_stone_like()
+          && self[cursor.to(Direction::Right)] == MapValue::Passage
+          && self[cursor.to(Direction::Left)] == MapValue::Passage
+          && self[cursor.to(Direction::Up)] == MapValue::Passage
+          && self[cursor.to(Direction::Down)] == MapValue::Passage
         {
           self[row][col] = MapValue::Boulder;
         }
@@ -227,29 +231,29 @@ impl LevelMap {
     for row in 1..MAP_ROWS - 1 {
       for col in 1..MAP_COLS - 1 {
         if self[row][col] == MapValue::Passage {
-          let cursor = self.cursor(row, col);
-          if cursor[Direction::Right] == MapValue::Stone1
-            && cursor[Direction::Down] == MapValue::Stone1
-            && cursor[Direction::Left] == MapValue::Passage
-            && cursor[Direction::Up] == MapValue::Passage
+          let cursor = Cursor::new(row, col);
+          if self[cursor.to(Direction::Right)] == MapValue::Stone1
+            && self[cursor.to(Direction::Down)] == MapValue::Stone1
+            && self[cursor.to(Direction::Left)] == MapValue::Passage
+            && self[cursor.to(Direction::Up)] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopLeft;
-          } else if cursor[Direction::Right] == MapValue::Stone1
-            && cursor[Direction::Down] == MapValue::Passage
-            && cursor[Direction::Left] == MapValue::Passage
-            && cursor[Direction::Up] == MapValue::Stone1
+          } else if self[cursor.to(Direction::Right)] == MapValue::Stone1
+            && self[cursor.to(Direction::Down)] == MapValue::Passage
+            && self[cursor.to(Direction::Left)] == MapValue::Passage
+            && self[cursor.to(Direction::Up)] == MapValue::Stone1
           {
             self[row][col] = MapValue::StoneBottomLeft;
-          } else if cursor[Direction::Right] == MapValue::Passage
-            && cursor[Direction::Down] == MapValue::Stone1
-            && cursor[Direction::Left] == MapValue::Stone1
-            && cursor[Direction::Up] == MapValue::Passage
+          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+            && self[cursor.to(Direction::Down)] == MapValue::Stone1
+            && self[cursor.to(Direction::Left)] == MapValue::Stone1
+            && self[cursor.to(Direction::Up)] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopRight;
-          } else if cursor[Direction::Right] == MapValue::Passage
-            && cursor[Direction::Down] == MapValue::Passage
-            && cursor[Direction::Left] == MapValue::Stone1
-            && cursor[Direction::Up] == MapValue::Stone1
+          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+            && self[cursor.to(Direction::Down)] == MapValue::Passage
+            && self[cursor.to(Direction::Left)] == MapValue::Stone1
+            && self[cursor.to(Direction::Up)] == MapValue::Stone1
           {
             self[row][col] = MapValue::StoneBottomRight;
           }
@@ -260,30 +264,30 @@ impl LevelMap {
     // Step 3: round stone corners
     for row in 1..MAP_ROWS - 1 {
       for col in 1..MAP_COLS - 1 {
-        let cursor = self.cursor(row, col);
+        let cursor = Cursor::new(row, col);
         if self[row][col] == MapValue::Stone1 {
-          if cursor[Direction::Right].is_stone_like()
-            && cursor[Direction::Down].is_stone_like()
-            && cursor[Direction::Left] == MapValue::Passage
-            && cursor[Direction::Up] == MapValue::Passage
+          if self[cursor.to(Direction::Right)].is_stone_like()
+            && self[cursor.to(Direction::Down)].is_stone_like()
+            && self[cursor.to(Direction::Left)] == MapValue::Passage
+            && self[cursor.to(Direction::Up)] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopLeft;
-          } else if cursor[Direction::Right].is_stone_like()
-            && cursor[Direction::Down] == MapValue::Passage
-            && cursor[Direction::Left] == MapValue::Passage
-            && cursor[Direction::Up].is_stone_like()
+          } else if self[cursor.to(Direction::Right)].is_stone_like()
+            && self[cursor.to(Direction::Down)] == MapValue::Passage
+            && self[cursor.to(Direction::Left)] == MapValue::Passage
+            && self[cursor.to(Direction::Up)].is_stone_like()
           {
             self[row][col] = MapValue::StoneBottomLeft;
-          } else if cursor[Direction::Right] == MapValue::Passage
-            && cursor[Direction::Down].is_stone_like()
-            && cursor[Direction::Left].is_stone_like()
-            && cursor[Direction::Up] == MapValue::Passage
+          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+            && self[cursor.to(Direction::Down)].is_stone_like()
+            && self[cursor.to(Direction::Left)].is_stone_like()
+            && self[cursor.to(Direction::Up)] == MapValue::Passage
           {
             self[row][col] = MapValue::StoneTopRight;
-          } else if cursor[Direction::Right] == MapValue::Passage
-            && cursor[Direction::Down] == MapValue::Passage
-            && cursor[Direction::Left].is_stone_like()
-            && cursor[Direction::Up].is_stone_like()
+          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+            && self[cursor.to(Direction::Down)] == MapValue::Passage
+            && self[cursor.to(Direction::Left)].is_stone_like()
+            && self[cursor.to(Direction::Up)].is_stone_like()
           {
             self[row][col] = MapValue::StoneBottomRight;
           }
@@ -751,31 +755,24 @@ impl MapValue {
 }
 
 #[derive(Clone, Copy)]
-pub struct Cursor<'m> {
-  map: &'m LevelMap,
-  row: usize,
-  col: usize,
+pub struct Cursor {
+  pub row: usize,
+  pub col: usize,
 }
 
-impl std::ops::Deref for Cursor<'_> {
-  type Target = MapValue;
-
-  fn deref(&self) -> &MapValue {
-    &self.map[self.row][self.col]
+impl Cursor {
+  pub fn new(row: usize, col: usize) -> Cursor {
+    Cursor { row, col }
   }
-}
 
-impl std::ops::Index<Direction> for Cursor<'_> {
-  type Output = MapValue;
-
-  fn index(&self, dir: Direction) -> &Self::Output {
+  pub fn to(self, dir: Direction) -> Cursor {
     let (row, col) = match dir {
       Direction::Left => (self.row, self.col - 1),
       Direction::Right => (self.row, self.col + 1),
       Direction::Up => (self.row - 1, self.col),
       Direction::Down => (self.row + 1, self.col),
     };
-    &self.map[row][col]
+    Cursor { row, col }
   }
 }
 
