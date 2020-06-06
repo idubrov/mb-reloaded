@@ -1,5 +1,5 @@
 use crate::entity::Direction;
-use crate::map::{MAP_COLS, MAP_ROWS};
+use crate::map::{Cursor, MAP_COLS, MAP_ROWS};
 use num_enum::TryFromPrimitive;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
@@ -461,7 +461,7 @@ impl LevelMap {
 
 /// Enum for all possible map values.
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, TryFromPrimitive, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive, PartialOrd)]
 pub enum MapValue {
   Map00 = 0x00,
   Map01 = 0x01,
@@ -578,7 +578,7 @@ pub enum MapValue {
   StoneLightCracked = 0x70,
   StoneHeavyCracked = 0x71,
   Map72 = 0x72,
-  Diamond,
+  Diamond = 0x73,
   Map74 = 0x74,
   Map75 = 0x75,
   Map76 = 0x76,
@@ -596,10 +596,12 @@ pub enum MapValue {
   SmallRadioRed = 0x82,
   BigRadioRed = 0x83,
   Map84 = 0x84,
-  Map85 = 0x85,
-  Map86 = 0x86,
-  Map87 = 0x87,
+  MonsterExploding1 = 0x85,
+  MonsterExploding2 = 0x86,
+  MonsterExploding3 = 0x87,
+  /// Plastic related
   Map88 = 0x88,
+  /// Plastic related
   Map89 = 0x89,
   SmallCrucifixBomb = 0x8A,
   BigBomb2 = 0x8B,
@@ -628,10 +630,10 @@ pub enum MapValue {
   BombDigger = 0xA2,
   Napalm2 = 0xA3,
   Barrel = 0xA4,
-  MapA5 = 0xA5,
-  MapA6 = 0xA6,
-  MapA7 = 0xA7,
-  MapA8 = 0xA8,
+  GrenadeFlyingRight = 0xA5,
+  GrenadeFlyingLeft = 0xA6,
+  GrenadeFlyingDown = 0xA7,
+  GrenadeFlyingUp = 0xA8,
   MapA9 = 0xA9,
   DynamiteExtinguished = 0xAA,
   JumpingBomb = 0xAB,
@@ -639,9 +641,9 @@ pub enum MapValue {
   BrickLightCracked = 0xAD,
   BrickHeavyCracked = 0xAE,
   SlimeCorpse = 0xAF,
-  MapB0 = 0xB0,
-  MapB1 = 0xB1,
-  MapB2 = 0xB2,
+  SlimeExploding1 = 0xB0,
+  SlimeExploding2 = 0xB1,
+  SlimeExploding3 = 0xB2,
   LifeItem = 0xB3,
   ButtonOff = 0xB4,
   ButtonOn = 0xB5,
@@ -751,28 +753,6 @@ impl MapValue {
       MapValue::Sand1 | MapValue::Sand2 | MapValue::Sand3 => true,
       _ => false,
     }
-  }
-}
-
-#[derive(Clone, Copy)]
-pub struct Cursor {
-  pub row: usize,
-  pub col: usize,
-}
-
-impl Cursor {
-  pub fn new(row: usize, col: usize) -> Cursor {
-    Cursor { row, col }
-  }
-
-  pub fn to(self, dir: Direction) -> Cursor {
-    let (row, col) = match dir {
-      Direction::Left => (self.row, self.col - 1),
-      Direction::Right => (self.row, self.col + 1),
-      Direction::Up => (self.row - 1, self.col),
-      Direction::Down => (self.row + 1, self.col),
-    };
-    Cursor { row, col }
   }
 }
 

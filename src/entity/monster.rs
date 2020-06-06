@@ -36,6 +36,7 @@ const TEMPLATE: MonsterEntity = MonsterEntity {
   moving: None,
   health: 0,
   pos: Position { x: 0, y: 0 },
+  drilling: 0,
 };
 
 #[derive(Clone, Copy)]
@@ -75,6 +76,7 @@ pub struct MonsterEntity {
   pub moving: Option<Direction>,
   pub health: u16,
   pub pos: Position,
+  pub drilling: u32,
 }
 
 impl MonsterEntity {

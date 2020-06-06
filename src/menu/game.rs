@@ -1,9 +1,8 @@
-use crate::bitmap;
-use crate::bitmap::Bitmap;
 use crate::context::{Animation, ApplicationContext};
 use crate::entity::{Direction, Equipment, MonsterEntity, PlayerEntity};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
+use crate::map::bitmaps::DIRT_BORDER_BITMAP;
 use crate::map::{Cursor, FogMap, HitsMap, LevelInfo, LevelMap, MapValue, TimerMap, MAP_COLS, MAP_ROWS};
 use crate::settings::GameSettings;
 use crate::Application;
@@ -139,12 +138,22 @@ impl Application<'_> {
     ctx.animate(Animation::FadeUp, 7)?;
     ctx.wait_key_pressed();
 
-    ctx.with_render_context(|canvas| {
+    // FIXME: dev!
+    if true {
       for monster in &mut state.monsters {
-        self.animate_monster(canvas, monster, &mut state.maps)?;
+        monster.moving = Some(monster.facing);
       }
-      Ok(())
-    })?;
+
+      loop {
+        ctx.with_render_context(|canvas| {
+          for monster in &mut state.monsters {
+            self.animate_monster(canvas, monster, &mut state.maps)?;
+          }
+          Ok(())
+        })?;
+        ctx.present()?;
+      }
+    }
     Ok(true)
   }
 
@@ -353,7 +362,7 @@ impl Application<'_> {
           Direction::Up | Direction::Down if delta_orthogonal > 5 => cursor.to(Direction::Right),
           Direction::Up | Direction::Down => cursor.to(Direction::Left),
         };
-        self.reveal_on_movement(canvas, cur, &maps.level, &mut maps.fog)?;
+        self.reveal_map_square(canvas, cur, &maps.level, &mut maps.fog)?;
       }
 
       // We are centered in the direction we are going -- hit the map!
@@ -363,7 +372,7 @@ impl Application<'_> {
 
       // Finishing moving from adjacent square -- render that square
       if finishing_move {
-        self.reveal_on_movement(canvas, cursor.to(direction.reverse()), &maps.level, &mut maps.fog)?;
+        self.reveal_map_square(canvas, cursor.to(direction.reverse()), &maps.level, &mut maps.fog)?;
       }
 
       // Check if we need to show animation with pick axe or without
@@ -394,14 +403,19 @@ impl Application<'_> {
     unimplemented!()
   }
 
-  fn reveal_on_movement(
+  fn reveal_map_square(
     &self,
-    _canvas: &mut WindowCanvas,
-    _cursor: Cursor,
-    _level: &LevelMap,
-    _fog: &mut FogMap,
+    canvas: &mut WindowCanvas,
+    cursor: Cursor,
+    level: &LevelMap,
+    fog: &mut FogMap,
   ) -> Result<(), anyhow::Error> {
-    unimplemented!()
+    let glyph = Glyph::Map(level[cursor]);
+    self
+      .glyphs
+      .render(canvas, (cursor.col * 10) as i32, (cursor.row * 10 + 30) as i32, glyph)?;
+    fog[cursor].reveal();
+    Ok(())
   }
 }
 
@@ -447,39 +461,3 @@ fn init_players_positions(players: &mut [PlayerEntity]) {
     }
   }
 }
-
-/// Bitmap of which map values are exposing border of surrounding dirt and stones
-const DIRT_BORDER_BITMAP: Bitmap<[u8; 32]> = bitmap!([
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0001,
-  0b0000_0000,
-  0b0000_0100,
-  0b0000_0000,
-  0b1000_0000,
-  0b1000_0011,
-  0b1111_1000,
-  0b0011_1111,
-  0b1000_1000,
-  0b1111_0011,
-  0b0000_1111,
-  0b1111_1100,
-  0b1111_1111,
-  0b1111_0111,
-  0b1111_1111,
-  0b1000_1111,
-  0b0011_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-  0b0000_0000,
-]);
