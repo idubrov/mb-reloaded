@@ -13,7 +13,7 @@ pub use hits::HitsMap;
 pub use level::{InvalidMap, LevelInfo, LevelMap, MapValue};
 pub use timer::TimerMap;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Cursor {
   pub row: usize,
   pub col: usize,

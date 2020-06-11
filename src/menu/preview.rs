@@ -35,11 +35,7 @@ fn preview_pixel(value: MapValue) -> usize {
     9
   } else if value == MapValue::Diamond || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown) {
     5
-  } else if value == MapValue::Passage
-    || value == MapValue::Blood
-    || value == MapValue::SlimeCorpse
-    || value == MapValue::Mine
-  {
+  } else if value.is_passable() || value == MapValue::Mine {
     14
   } else if value == MapValue::MetalWall {
     8

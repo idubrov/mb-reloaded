@@ -10,6 +10,21 @@ pub struct Glyphs<'t> {
   texture: Texture<'t>,
 }
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AnimationPhase {
+  Phase1 = 0,
+  Phase2 = 1,
+  Phase3 = 2,
+  Phase4 = 3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Digging {
+  Hands,
+  Pickaxe,
+}
+
 /// Type of the glyph that we want to render
 #[derive(Clone, Copy)]
 pub enum Glyph {
@@ -23,7 +38,7 @@ pub enum Glyph {
   Map(MapValue),
   SandBorder(Direction),
   StoneBorder(Direction),
-  Monster(MonsterKind, Direction, u8),
+  Monster(MonsterKind, Direction, Digging, AnimationPhase),
 }
 
 impl Glyph {
@@ -58,23 +73,21 @@ impl Glyph {
       Glyph::StoneBorder(Direction::Right) => (154, 60, 157, 69),
       Glyph::StoneBorder(Direction::Up) => (148, 71, 157, 73),
       Glyph::StoneBorder(Direction::Down) => (148, 75, 157, 77),
-
-      // Players:
-      // player1 => (160, 10)
-      // player2 => (160, 0)
-      // player3 => (160, 30)
-      // player4 => (160, 40)
-      // player1 digging => (160, 200)
-      // player2 digging => (0, 200)
-      // player3 digging => (0, 210)
-      // player4 digging => (160, 210)
-      // Monsters
-      Glyph::Monster(kind, dir, anim) => {
+      Glyph::Monster(kind, dir, digging, anim) => {
+        let anim = anim as u8;
         let (pos_x, pos_y) = match kind {
           MonsterKind::Furry => (160, 50),
           MonsterKind::Grenadier => (160, 60),
           MonsterKind::Slime => (160, 70),
           MonsterKind::Alien => (0, 80),
+          MonsterKind::Player1 if digging == Digging::Pickaxe => (160, 200),
+          MonsterKind::Player2 if digging == Digging::Pickaxe => (0, 200),
+          MonsterKind::Player3 if digging == Digging::Pickaxe => (0, 210),
+          MonsterKind::Player4 if digging == Digging::Pickaxe => (160, 210),
+          MonsterKind::Player1 => (160, 10),
+          MonsterKind::Player2 => (160, 0),
+          MonsterKind::Player3 => (160, 30),
+          MonsterKind::Player4 => (160, 40),
         };
         let pos_x = pos_x + (dir as i16) * 40 + i16::from(anim) * 10;
         (pos_x, pos_y, pos_x + 9, pos_y + 9)

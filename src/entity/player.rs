@@ -1,3 +1,4 @@
+use crate::entity::monster::Position;
 use crate::keys::KeyBindings;
 use crate::roster::PlayerStats;
 use num_enum::TryFromPrimitive;
@@ -66,15 +67,16 @@ pub struct PlayerInfo {
 pub struct PlayerEntity {
   pub player: PlayerInfo,
   pub keys: KeyBindings,
-  base_drillingpower: u32,
+  pub base_drillingpower: u32,
   /// Cash accumulated in the current level
   pub accumulated_cash: u32,
   pub cash: u32,
   pub inventory: Inventory,
   pub stats: PlayerStats,
   pub selection: Equipment,
+  pub is_dead: bool,
   /// (x, y), where each coordinate is pixel coordinate
-  pub pos: (u16, u16),
+  pub pos: Position,
 }
 
 impl PlayerEntity {
@@ -95,9 +97,17 @@ impl PlayerEntity {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct Inventory {
   inventory: [u32; Equipment::TOTAL],
+}
+
+impl Inventory {
+  pub const fn empty() -> Self {
+    Self {
+      inventory: [0; Equipment::TOTAL],
+    }
+  }
 }
 
 impl std::ops::Index<Equipment> for Inventory {
@@ -126,7 +136,8 @@ impl PlayerEntity {
       inventory: Default::default(),
       stats: Default::default(),
       selection: Equipment::SmallBomb,
-      pos: (0, 0),
+      is_dead: false,
+      pos: Position { x: 0, y: 0 },
     }
   }
 }

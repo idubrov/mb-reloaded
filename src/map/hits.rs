@@ -1,20 +1,34 @@
-use crate::map::{LevelMap, MapValue, MAP_COLS, MAP_ROWS};
+use crate::map::{Cursor, LevelMap, MapValue, MAP_COLS, MAP_ROWS};
 
 pub struct HitsMap {
-  data: Vec<u16>,
+  data: Vec<i32>,
 }
 
 impl std::ops::Index<usize> for HitsMap {
-  type Output = [u16];
+  type Output = [i32];
 
-  fn index(&self, row: usize) -> &[u16] {
+  fn index(&self, row: usize) -> &[i32] {
     &self.data[row * MAP_COLS..][..MAP_COLS]
   }
 }
 
 impl std::ops::IndexMut<usize> for HitsMap {
-  fn index_mut(&mut self, row: usize) -> &mut [u16] {
+  fn index_mut(&mut self, row: usize) -> &mut [i32] {
     &mut self.data[row * MAP_COLS..][..MAP_COLS]
+  }
+}
+
+impl std::ops::Index<Cursor> for HitsMap {
+  type Output = i32;
+
+  fn index(&self, cursor: Cursor) -> &i32 {
+    &self[cursor.row][cursor.col]
+  }
+}
+
+impl std::ops::IndexMut<Cursor> for HitsMap {
+  fn index_mut(&mut self, cursor: Cursor) -> &mut i32 {
+    &mut self[cursor.row][cursor.col]
   }
 }
 
@@ -32,7 +46,7 @@ impl HitsMap {
   }
 }
 
-fn hits(value: MapValue) -> u16 {
+fn hits(value: MapValue) -> i32 {
   match value {
     MapValue::MetalWall => 30_000,
     MapValue::Sand1 => 22,

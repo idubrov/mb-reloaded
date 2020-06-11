@@ -1,31 +1,38 @@
-use crate::entity::Direction;
-use crate::map::{LevelMap, MapValue, MAP_COLS, MAP_ROWS};
+use crate::entity::{Direction, Inventory, PlayerEntity};
+use crate::map::{Cursor, LevelMap, MapValue, MAP_COLS, MAP_ROWS};
+use crate::roster::PlayerStats;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum MonsterKind {
   Furry,
   Grenadier,
   Slime,
   Alien,
+  Player1,
+  Player2,
+  Player3,
+  Player4,
 }
 
 impl MonsterKind {
-  #[allow(dead_code)]
-  pub fn drilling_power(self) -> u16 {
+  pub fn drilling_power(self) -> i32 {
     match self {
       MonsterKind::Furry => 5,
       MonsterKind::Grenadier => 12,
       MonsterKind::Slime => 12,
       MonsterKind::Alien => 52,
+      _ => unimplemented!(),
     }
   }
 
-  fn initial_health(self) -> u16 {
+  pub fn initial_health(self) -> u16 {
     match self {
       MonsterKind::Furry => 29,     // or 2
       MonsterKind::Grenadier => 29, // or 3
       MonsterKind::Slime => 10,     // or 1
       MonsterKind::Alien => 66,     // or 5
+      _ => unimplemented!(),
     }
   }
 }
@@ -37,6 +44,11 @@ const TEMPLATE: MonsterEntity = MonsterEntity {
   health: 0,
   pos: Position { x: 0, y: 0 },
   drilling: 0,
+  animation: 0,
+  is_dead: false,
+  inventory: Inventory::empty(),
+  accumulated_cash: 0,
+  lives: 0,
 };
 
 #[derive(Clone, Copy)]
@@ -46,6 +58,9 @@ pub struct Position {
 }
 
 impl Position {
+  pub fn new(x: i32, y: i32) -> Self {
+    Self { x, y }
+  }
   /// Adjust coordinate to step in a given direction
   pub fn step(&mut self, dir: Direction) {
     match dir {
@@ -67,16 +82,29 @@ impl Position {
       }
     }
   }
+
+  pub fn cursor(self) -> Cursor {
+    let row = ((self.y - 30) / 10) as usize;
+    let col = (self.x / 10) as usize;
+    Cursor::new(row as usize, col as usize)
+  }
 }
 
 #[derive(Clone)]
 pub struct MonsterEntity {
   pub kind: MonsterKind,
   pub facing: Direction,
+  // FIXME: make a boolean flag?
   pub moving: Option<Direction>,
   pub health: u16,
   pub pos: Position,
-  pub drilling: u32,
+  pub drilling: i32,
+  pub animation: u8,
+  pub is_dead: bool,
+  pub inventory: Inventory,
+  /// Cash accumulated in the current level
+  pub accumulated_cash: u32,
+  pub lives: u8,
 }
 
 impl MonsterEntity {
@@ -102,6 +130,7 @@ impl MonsterEntity {
             y: (row * 10 + 35) as i32,
           },
           health: kind.initial_health(),
+          drilling: kind.drilling_power(),
           ..TEMPLATE
         };
 
@@ -123,5 +152,15 @@ impl MonsterEntity {
     }
 
     list
+  }
+
+  // FIXME: do we use the same for players or only for clones?
+  pub fn player_stats(&mut self) -> Option<&mut PlayerStats> {
+    None
+  }
+
+  /// Player which initiated this clone
+  pub fn clone_player(&mut self) -> Option<&mut PlayerEntity> {
+    None
   }
 }

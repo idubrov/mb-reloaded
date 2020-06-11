@@ -55,6 +55,12 @@ impl std::ops::Index<Cursor> for LevelMap {
   }
 }
 
+impl std::ops::IndexMut<Cursor> for LevelMap {
+  fn index_mut(&mut self, cursor: Cursor) -> &mut MapValue {
+    &mut self[cursor.row][cursor.col]
+  }
+}
+
 pub enum LevelInfo {
   Random,
   File { name: String, map: LevelMap },
@@ -734,7 +740,17 @@ impl MapValue {
       | MapValue::StoneTopLeft
       | MapValue::StoneTopRight
       | MapValue::StoneBottomLeft
-      | MapValue::StoneBottomRight => true,
+      | MapValue::StoneBottomRight
+      | MapValue::StoneLightCracked
+      | MapValue::StoneHeavyCracked => true,
+      _ => false,
+    }
+  }
+
+  /// Check if cell is a stone corner
+  pub fn is_stone_corner(self) -> bool {
+    match self {
+      MapValue::StoneTopLeft | MapValue::StoneTopRight | MapValue::StoneBottomLeft | MapValue::StoneBottomRight => true,
       _ => false,
     }
   }
@@ -751,6 +767,21 @@ impl MapValue {
   pub fn is_sand(self) -> bool {
     match self {
       MapValue::Sand1 | MapValue::Sand2 | MapValue::Sand3 => true,
+      _ => false,
+    }
+  }
+
+  pub fn is_brick_like(self) -> bool {
+    match self {
+      MapValue::Brick | MapValue::BrickLightCracked | MapValue::BrickHeavyCracked => true,
+      _ => false,
+    }
+  }
+
+  /// Check if value is passable square
+  pub fn is_passable(self) -> bool {
+    match self {
+      MapValue::Passage | MapValue::Blood | MapValue::SlimeCorpse => true,
       _ => false,
     }
   }

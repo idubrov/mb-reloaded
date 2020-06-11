@@ -1,4 +1,4 @@
-use crate::map::{LevelMap, MapValue, MAP_COLS, MAP_ROWS};
+use crate::map::{Cursor, LevelMap, MapValue, MAP_COLS, MAP_ROWS};
 use rand::prelude::*;
 
 /// Map for tracking timer counters.
@@ -17,6 +17,20 @@ impl std::ops::Index<usize> for TimerMap {
 impl std::ops::IndexMut<usize> for TimerMap {
   fn index_mut(&mut self, row: usize) -> &mut [u16] {
     &mut self.data[row * MAP_COLS..][..MAP_COLS]
+  }
+}
+
+impl std::ops::Index<Cursor> for TimerMap {
+  type Output = u16;
+
+  fn index(&self, cursor: Cursor) -> &u16 {
+    &self[cursor.row][cursor.col]
+  }
+}
+
+impl std::ops::IndexMut<Cursor> for TimerMap {
+  fn index_mut(&mut self, cursor: Cursor) -> &mut u16 {
+    &mut self[cursor.row][cursor.col]
   }
 }
 

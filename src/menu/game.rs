@@ -1,11 +1,12 @@
 use crate::context::{Animation, ApplicationContext};
-use crate::entity::{Direction, Equipment, MonsterEntity, PlayerEntity};
+use crate::entity::{Direction, Equipment, MonsterEntity, MonsterKind, PlayerEntity, Position};
 use crate::error::ApplicationError::SdlError;
-use crate::glyphs::Glyph;
-use crate::map::bitmaps::DIRT_BORDER_BITMAP;
+use crate::glyphs::{AnimationPhase, Digging, Glyph};
+use crate::map::bitmaps::{DIRT_BORDER_BITMAP, PUSHABLE_BITMAP};
 use crate::map::{Cursor, FogMap, HitsMap, LevelInfo, LevelMap, MapValue, TimerMap, MAP_COLS, MAP_ROWS};
 use crate::settings::GameSettings;
 use crate::Application;
+use rand::prelude::*;
 use rand::Rng;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -13,6 +14,7 @@ use sdl2::render::WindowCanvas;
 use std::rc::Rc;
 
 struct Maps {
+  darkness: bool,
   #[allow(dead_code)]
   timer: TimerMap,
   level: LevelMap,
@@ -21,7 +23,6 @@ struct Maps {
 }
 
 struct RoundState<'p> {
-  darkness: bool,
   maps: Maps,
   monsters: Vec<MonsterEntity>,
   players: &'p mut [PlayerEntity],
@@ -92,8 +93,8 @@ impl Application<'_> {
 
     let monsters = MonsterEntity::from_map(&mut level);
     let mut state = RoundState {
-      darkness: settings.options.darkness,
       maps: Maps {
+        darkness: settings.options.darkness,
         timer: TimerMap::from_level_map(&level),
         hits: HitsMap::from_level_map(&level),
         fog: FogMap::new(),
@@ -146,12 +147,13 @@ impl Application<'_> {
 
       loop {
         ctx.with_render_context(|canvas| {
-          for monster in &mut state.monsters {
-            self.animate_monster(canvas, monster, &mut state.maps)?;
+          for monster in 0..state.monsters.len() {
+            self.animate_monster(canvas, &state.players, &mut state.monsters, monster, &mut state.maps)?;
           }
           Ok(())
         })?;
         ctx.present()?;
+        ctx.pump_events();
       }
     }
     Ok(true)
@@ -160,8 +162,8 @@ impl Application<'_> {
   fn render_game_screen(&self, canvas: &mut WindowCanvas, state: &RoundState) -> Result<(), anyhow::Error> {
     canvas.copy(&self.players.texture, None, None).map_err(SdlError)?;
 
-    self.render_level(canvas, &state.maps.level, state.darkness)?;
-    if state.darkness {
+    self.render_level(canvas, &state.maps.level, state.maps.darkness)?;
+    if state.maps.darkness {
       canvas.set_draw_color(Color::BLACK);
       canvas.fill_rect(Rect::new(10, 40, 620, 430)).map_err(SdlError)?;
     } else {
@@ -210,8 +212,9 @@ impl Application<'_> {
       // Render dirt borders
       for row in 1..MAP_ROWS - 1 {
         for col in 1..MAP_COLS - 1 {
-          if DIRT_BORDER_BITMAP[level[row][col] as usize] {
-            self.render_dirt_border(canvas, level, row, col)?;
+          let cursor = Cursor::new(row, col);
+          if DIRT_BORDER_BITMAP[level[row][col]] {
+            self.render_dirt_border(canvas, cursor, level)?;
           }
         }
       }
@@ -223,16 +226,15 @@ impl Application<'_> {
   fn render_dirt_border(
     &self,
     canvas: &mut WindowCanvas,
+    cursor: Cursor,
     level: &LevelMap,
-    row: usize,
-    col: usize,
   ) -> Result<(), anyhow::Error> {
-    let pos_x = (10 * col) as i32;
-    let pos_y = (10 * row + 30) as i32;
+    let pos_x = (10 * cursor.col) as i32;
+    let pos_y = (10 * cursor.row + 30) as i32;
 
     // Dirt
     for dir in Direction::all() {
-      let value = level[Cursor::new(row, col).to(dir)];
+      let value = level[cursor.to(dir)];
       let is_corner = match dir {
         Direction::Right if value == MapValue::StoneTopLeft || value == MapValue::StoneBottomLeft => true,
         Direction::Left if value == MapValue::StoneTopRight || value == MapValue::StoneBottomRight => true,
@@ -250,7 +252,7 @@ impl Application<'_> {
 
     // Stone
     for dir in Direction::all() {
-      let value = level[Cursor::new(row, col).to(dir)];
+      let value = level[cursor.to(dir)];
       if value >= MapValue::Stone1 && value <= MapValue::Stone4 {
         let (dx, dy) = border_offset(dir);
         self
@@ -312,48 +314,46 @@ impl Application<'_> {
     // FIXME: handle moving directions, too
     let pos_x = monster.pos.x - 5;
     let pos_y = monster.pos.y - 5;
-    self
-      .glyphs
-      .render(canvas, pos_x, pos_y, Glyph::Monster(monster.kind, monster.facing, 0))?;
+    self.glyphs.render(
+      canvas,
+      pos_x,
+      pos_y,
+      Glyph::Monster(monster.kind, monster.facing, Digging::Hands, AnimationPhase::Phase1),
+    )?;
     Ok(())
   }
 
   fn animate_monster(
     &self,
     canvas: &mut WindowCanvas,
-    monster: &mut MonsterEntity,
+    players: &[PlayerEntity],
+    monsters: &mut [MonsterEntity],
+    monster: usize,
     maps: &mut Maps,
   ) -> Result<(), anyhow::Error> {
-    if let Some(direction) = monster.moving {
-      let row = ((monster.pos.y - 30) / 10) as usize;
-      let col = (monster.pos.x / 10) as usize;
-      let delta_x = monster.pos.x % 10;
-      let delta_y = monster.pos.y % 10;
-      let cursor = Cursor::new(row as usize, col as usize);
+    if let Some(direction) = monsters[monster].moving {
+      let delta_x = monsters[monster].pos.x % 10;
+      let delta_y = monsters[monster].pos.y % 10;
+      let cursor = monsters[monster].pos.cursor();
 
       let (delta_dir, delta_orthogonal, finishing_move, can_move) = match direction {
-        Direction::Left => (delta_x, delta_y, delta_x > 5, monster.pos.x > 5),
-        Direction::Right => (delta_x, delta_y, delta_x < 5, monster.pos.x < 635),
-        Direction::Up => (delta_y, delta_x, delta_y > 5, monster.pos.y > 35),
-        Direction::Down => (delta_y, delta_x, delta_y < 5, monster.pos.x < 475),
+        Direction::Left => (delta_x, delta_y, delta_x > 5, monsters[monster].pos.x > 5),
+        Direction::Right => (delta_x, delta_y, delta_x < 5, monsters[monster].pos.x < 635),
+        Direction::Up => (delta_y, delta_x, delta_y > 5, monsters[monster].pos.y > 35),
+        Direction::Down => (delta_y, delta_x, delta_y < 5, monsters[monster].pos.x < 475),
       };
 
       // Vertically centered enough to be moving in the current direction
       let is_moving = can_move && delta_orthogonal > 3 && delta_orthogonal < 6;
       let map_value = maps.level[cursor.to(direction)];
       // Either finishing move into the cell or cell to the left is passable
-      if is_moving
-        && (finishing_move
-          || map_value == MapValue::Passage
-          || map_value == MapValue::Blood
-          || map_value == MapValue::SlimeCorpse)
-      {
-        monster.pos.step(direction);
+      if is_moving && (finishing_move || map_value.is_passable()) {
+        monsters[monster].pos.step(direction);
       }
 
       if delta_orthogonal != 5 {
         // Center our position in orthogonal direction
-        monster.pos.center_orthogonal(direction);
+        monsters[monster].pos.center_orthogonal(direction);
 
         // Need to redraw cell orthogonal to the moving direction if we are re-centering.
         let cur = match direction {
@@ -362,59 +362,368 @@ impl Application<'_> {
           Direction::Up | Direction::Down if delta_orthogonal > 5 => cursor.to(Direction::Right),
           Direction::Up | Direction::Down => cursor.to(Direction::Left),
         };
-        self.reveal_map_square(canvas, cur, &maps.level, &mut maps.fog)?;
+        self.reveal_map_square(canvas, cur, maps)?;
       }
 
       // We are centered in the direction we are going -- hit the map!
       if delta_dir == 5 {
-        self.hit_map(monster, cursor.to(direction), &mut maps.hits);
+        self.interact_map(canvas, players, monsters, monster, cursor.to(direction), maps)?;
       }
 
       // Finishing moving from adjacent square -- render that square
       if finishing_move {
-        self.reveal_map_square(canvas, cursor.to(direction.reverse()), &maps.level, &mut maps.fog)?;
+        self.reveal_map_square(canvas, cursor.to(direction.reverse()), maps)?;
       }
 
       // Check if we need to show animation with pick axe or without
-      let pickaxe = delta_dir == 5
+      let is_hard = delta_dir == 5
         && ((map_value >= MapValue::StoneTopLeft && map_value <= MapValue::StoneBottomRight)
           || map_value == MapValue::StoneBottomLeft
           || (map_value >= MapValue::Stone1 && map_value <= MapValue::Stone4)
           || (map_value >= MapValue::StoneLightCracked && map_value <= MapValue::StoneHeavyCracked)
           || (map_value >= MapValue::Brick && map_value <= MapValue::BrickHeavyCracked));
+      let digging = if is_hard { Digging::Pickaxe } else { Digging::Hands };
 
-      self.animate_digging(canvas, monster, pickaxe)?;
+      self.animate_digging(canvas, &mut monsters[monster], digging)?;
     } else {
-      self.render_monster(canvas, monster)?;
+      self.render_monster(canvas, &monsters[monster])?;
     }
     Ok(())
   }
 
-  fn hit_map(&self, _monster: &MonsterEntity, _cursor: Cursor, _map: &mut HitsMap) {
-    unimplemented!()
+  /// Interact with the map cell (dig it with a pickaxe, pick up gold, press buttons).
+  #[allow(clippy::cognitive_complexity)]
+  fn interact_map(
+    &self,
+    canvas: &mut WindowCanvas,
+    players: &[PlayerEntity],
+    monsters: &mut [MonsterEntity],
+    monster: usize,
+    cursor: Cursor,
+    maps: &mut Maps,
+  ) -> Result<(), anyhow::Error> {
+    let value = maps.level[cursor];
+    if value.is_passable() {
+      if let Some(stats) = monsters[monster].player_stats() {
+        stats.meters_ran += 1;
+        if maps.darkness {
+          self.reveal_view(maps)?;
+        }
+      }
+    }
+
+    if value == MapValue::Passage {
+      // FIXME: temporary
+    } else if value == MapValue::MetalWall
+      || value.is_sand()
+      || value.is_stone_like()
+      || value.is_brick_like()
+      || value == MapValue::BioMass
+      || value == MapValue::Plastic
+      || value == MapValue::ExplosivePlastic
+      || value == MapValue::LightGravel
+      || value == MapValue::HeavyGravel
+    {
+      // Diggable squares
+      // FIXME: use mapvalueset
+
+      if maps.hits[cursor] == 30_000 {
+        // 30_000 is a metal wall
+      } else if maps.hits[cursor] > 1 {
+        maps.hits[cursor] -= monsters[monster].drilling;
+        if value.is_stone_like() {
+          if maps.hits[cursor] < 500 {
+            if value.is_stone_corner() {
+              maps.level[cursor] = MapValue::LightGravel;
+            } else {
+              maps.level[cursor] = MapValue::StoneHeavyCracked;
+            }
+            self.reveal_map_square(canvas, cursor, maps)?;
+          } else if maps.hits[cursor] < 1000 {
+            if value.is_stone_corner() {
+              maps.level[cursor] = MapValue::HeavyGravel;
+            } else {
+              maps.level[cursor] = MapValue::StoneLightCracked;
+            }
+            self.reveal_map_square(canvas, cursor, maps)?;
+          }
+        } else if value.is_brick_like() {
+          if maps.hits[cursor] <= 2000 {
+            maps.level[cursor] = MapValue::BrickHeavyCracked;
+          } else if maps.hits[cursor] <= 4000 {
+            maps.level[cursor] = MapValue::BrickLightCracked;
+          }
+          self.reveal_map_square(canvas, cursor, maps)?;
+          return Ok(());
+        }
+      } else {
+        maps.hits[cursor] = 0;
+        maps.level[cursor] = MapValue::Passage;
+        self.reveal_map_square(canvas, cursor, maps)?;
+        self.render_dirt_border(canvas, cursor, &maps.level)?;
+      }
+    } else if value == MapValue::Diamond
+      || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown)
+      || (value >= MapValue::SmallPickaxe && value <= MapValue::Drill)
+    {
+      let drill_value = match value {
+        MapValue::SmallPickaxe => 1,
+        MapValue::LargePickaxe => 3,
+        MapValue::Drill => 5,
+        _ => 0,
+      };
+      let gold_value = match value {
+        MapValue::GoldShield => 15,
+        MapValue::GoldEgg => 25,
+        MapValue::GoldPileCoins => 15,
+        MapValue::GoldBracelet => 10,
+        MapValue::GoldBar => 30,
+        MapValue::GoldCross => 35,
+        MapValue::GoldScepter => 50,
+        MapValue::GoldRubin => 65,
+        MapValue::GoldCrown => 100,
+        MapValue::Diamond => 1000,
+        _ => 0,
+      };
+
+      if let Some(player) = monsters[monster].clone_player() {
+        player.base_drillingpower += drill_value;
+        player.accumulated_cash += gold_value;
+      }
+
+      monsters[monster].drilling += drill_value as i32;
+      monsters[monster].accumulated_cash += gold_value;
+      if value >= MapValue::SmallPickaxe && value <= MapValue::Drill {
+        // FIXME: Play picaxe.voc, freq: 11000
+      } else {
+        // FIXME: play kili.voc, freq: 10000, 12599 or 14983
+        if let Some(stats) = monsters[monster].player_stats() {
+          stats.treasures_collected += 1;
+        }
+      }
+
+      // FIXME: optimized re-rendering?
+      self.render_players_info(canvas, players)?;
+
+      maps.hits[cursor] = 0;
+      maps.level[cursor] = MapValue::Passage;
+      self.reveal_map_square(canvas, cursor, maps)?;
+    } else if value == MapValue::Mine {
+      // Activate the mine
+      maps.timer[cursor] = 1;
+    } else if PUSHABLE_BITMAP[value] {
+      // We must be moving at this point, so unwrap is okay
+      let target = cursor.to(monsters[monster].moving.unwrap());
+      if maps.hits[cursor] == 30_000 {
+        // FIXME: wall shouldn't be pushable anyways?
+      } else if maps.hits[cursor] > 1 {
+        // Still need to push a little
+        maps.hits[cursor] -= monsters[monster].drilling;
+      } else if maps.level[target].is_passable() {
+        // Check if no entity is blocking the path
+        if players.iter().all(|p| p.is_dead || p.pos.cursor() != target)
+          && monsters.iter().all(|m| m.is_dead || m.pos.cursor() != target)
+        {
+          // Push to `target` locaiton
+          maps.level[target] = maps.level[cursor];
+          maps.timer[target] = maps.timer[cursor];
+          maps.hits[target] = 24;
+
+          // Clear old position
+          maps.level[cursor] = MapValue::Passage;
+          maps.timer[cursor] = 0;
+
+          // FIXME: re-render blood
+          reapply_blood(players, monsters, cursor, maps);
+          self.reveal_map_square(canvas, cursor, maps)?;
+          self.reveal_map_square(canvas, target, maps)?;
+        }
+      }
+    } else if value == MapValue::WeaponsCrate {
+      // FIXME: play sound sample picaxe, freq = 11000, at column
+      let mut rng = rand::thread_rng();
+      match rng.gen_range(0, 5) {
+        0 => {
+          let cnt = rng.gen_range(1, 3);
+          let weapon = *[
+            Equipment::AtomicBomb,
+            Equipment::Grenade,
+            Equipment::Flamethrower,
+            Equipment::Clone,
+          ]
+          .choose(&mut rng)
+          .unwrap();
+          monsters[monster].inventory[weapon] += cnt;
+        }
+        1 => {
+          let cnt = rng.gen_range(1, 6);
+          let weapon = *[
+            Equipment::Napalm,
+            Equipment::LargeCrucifix,
+            Equipment::Teleport,
+            Equipment::Biomass,
+            Equipment::Extinguisher,
+            Equipment::JumpingBomb,
+            Equipment::SuperDrill,
+          ]
+          .choose(&mut rng)
+          .unwrap();
+          monsters[monster].inventory[weapon] += cnt;
+        }
+        _ => {
+          let cnt = rng.gen_range(3, 13);
+          let weapon = *[
+            Equipment::SmallBomb,
+            Equipment::LargeBomb,
+            Equipment::Dynamite,
+            Equipment::SmallRadio,
+            Equipment::LargeRadio,
+            Equipment::Mine,
+            Equipment::Barrel,
+            Equipment::SmallCrucifix,
+            Equipment::Plastic,
+            Equipment::ExplosivePlastic,
+            Equipment::Digger,
+            Equipment::MetalWall,
+          ]
+          .choose(&mut rng)
+          .unwrap();
+          monsters[monster].inventory[weapon] += cnt;
+        }
+      }
+
+      maps.hits[cursor] = 0;
+      maps.level[cursor] = MapValue::Passage;
+      self.reveal_map_square(canvas, cursor, maps)?;
+
+      // FIXME: more optimal re-rendering?
+      self.render_players_info(canvas, players)?;
+    } else if value == MapValue::LifeItem {
+      if monsters[monster].kind == MonsterKind::Player1 {
+        monsters[monster].lives += 1;
+        // FIXME: we need unify players and monsters...
+        self.render_players_info(canvas, players)?;
+      }
+
+      maps.hits[cursor] = 0;
+      maps.level[cursor] = MapValue::Passage;
+      self.reveal_map_square(canvas, cursor, maps)?;
+    } else if value == MapValue::ButtonOff {
+      if maps.timer[cursor] <= 1 {
+        open_doors(maps);
+      }
+    } else if value == MapValue::ButtonOn {
+      if maps.timer[cursor] <= 1 {
+        close_doors(maps);
+      }
+    } else if value == MapValue::Teleport {
+      let mut entrance_idx = 0;
+      let mut teleport_count = 0;
+      for row in 0..MAP_ROWS {
+        for col in 0..MAP_COLS {
+          if maps.level[row][col] == MapValue::Teleport {
+            if cursor == Cursor::new(row, col) {
+              entrance_idx = teleport_count;
+            }
+            teleport_count += 1;
+          }
+        }
+      }
+
+      let mut rng = rand::thread_rng();
+      // FIXME: if teleport_count == 1
+      let mut exit = rng.gen_range(0, teleport_count - 1);
+      if exit >= entrance_idx {
+        exit += 1;
+      }
+
+      'outer: for row in 0..MAP_ROWS {
+        for col in 0..MAP_COLS {
+          if maps.level[row][col] == MapValue::Teleport {
+            if exit == 0 {
+              // Found exit point
+              self.reveal_map_square(canvas, monsters[monster].pos.cursor(), maps)?;
+
+              // Move to the exit point
+              let x = col * 10 + 5;
+              let y = row * 10 + 35;
+              monsters[monster].pos = Position::new(x as i32, y as i32);
+
+              self.reveal_map_square(canvas, monsters[monster].pos.cursor(), maps)?;
+              break 'outer;
+            }
+            exit -= 1;
+          }
+        }
+      }
+    } else if value == MapValue::Exit {
+      // FIXME: exiting level
+    } else if value == MapValue::Medikit {
+      // FIXME: play sound picaxe.voc, freq = 11000
+
+      // FIXME: check is_monster_active
+      if true {
+        monsters[monster].health = monsters[monster].kind.initial_health();
+      }
+
+      self.render_players_info(canvas, players)?;
+
+      maps.level[cursor] = MapValue::Passage;
+      self.reveal_map_square(canvas, cursor, maps)?;
+    }
+    Ok(())
+  }
+
+  fn reveal_view(&self, _maps: &mut Maps) -> Result<(), anyhow::Error> {
+    unimplemented!("reveal view")
   }
 
   fn animate_digging(
     &self,
-    _canvas: &mut WindowCanvas,
-    _monster: &MonsterEntity,
-    _pickaxe: bool,
+    canvas: &mut WindowCanvas,
+    monster: &mut MonsterEntity,
+    digging: Digging,
   ) -> Result<(), anyhow::Error> {
-    unimplemented!()
+    let dir = if let Some(dir) = monster.moving {
+      dir
+    } else {
+      return Ok(());
+    };
+
+    if monster.animation < 30 {
+      let phase = match monster.animation / 5 {
+        0 => AnimationPhase::Phase1,
+        1 => AnimationPhase::Phase2,
+        2 => AnimationPhase::Phase3,
+        3 => AnimationPhase::Phase4,
+        4 => AnimationPhase::Phase3,
+        5 => AnimationPhase::Phase2,
+        _ => unreachable!(),
+      };
+      let glyph = Glyph::Monster(monster.kind, dir, digging, phase);
+      self
+        .glyphs
+        .render(canvas, monster.pos.x - 5, monster.pos.y - 5, glyph)?;
+    } else {
+      monster.animation = 0;
+    }
+
+    if digging == Digging::Pickaxe && monster.animation == 16 {
+      // FIXME: frequency adjustment
+      //let mut rng = rand::thread_rng();
+      //let freq = rng.gen_range(11000, 11100)
+      // FIXME: play sound picaxe.voc
+    }
+    monster.animation += 1;
+    Ok(())
   }
 
-  fn reveal_map_square(
-    &self,
-    canvas: &mut WindowCanvas,
-    cursor: Cursor,
-    level: &LevelMap,
-    fog: &mut FogMap,
-  ) -> Result<(), anyhow::Error> {
-    let glyph = Glyph::Map(level[cursor]);
+  fn reveal_map_square(&self, canvas: &mut WindowCanvas, cursor: Cursor, maps: &mut Maps) -> Result<(), anyhow::Error> {
+    let glyph = Glyph::Map(maps.level[cursor]);
     self
       .glyphs
       .render(canvas, (cursor.col * 10) as i32, (cursor.row * 10 + 30) as i32, glyph)?;
-    fog[cursor].reveal();
+    maps.fog[cursor].reveal();
     Ok(())
   }
 }
@@ -432,32 +741,59 @@ fn init_players_positions(players: &mut [PlayerEntity]) {
   let mut rng = rand::thread_rng();
 
   if players.len() == 1 {
-    players[0].pos = (15, 45);
+    players[0].pos = Position::new(15, 45);
   } else {
     let mut rng = rand::thread_rng();
 
     if rng.gen::<bool>() {
-      players[0].pos = (15, 45);
-      players[1].pos = (625, 465);
+      players[0].pos = Position::new(15, 45);
+      players[1].pos = Position::new(625, 465);
     } else {
-      players[0].pos = (625, 465);
-      players[1].pos = (15, 45);
+      players[0].pos = Position::new(625, 465);
+      players[1].pos = Position::new(15, 45);
     }
   }
 
   if players.len() == 3 {
     if rng.gen::<bool>() {
-      players[2].pos = (15, 465);
+      players[2].pos = Position::new(15, 465);
     } else {
-      players[2].pos = (625, 45);
+      players[2].pos = Position::new(625, 45);
     }
   } else if players.len() == 4 {
     if rng.gen::<bool>() {
-      players[2].pos = (15, 465);
-      players[3].pos = (625, 45);
+      players[2].pos = Position::new(15, 465);
+      players[3].pos = Position::new(625, 45);
     } else {
-      players[2].pos = (625, 45);
-      players[3].pos = (15, 465);
+      players[2].pos = Position::new(625, 45);
+      players[3].pos = Position::new(15, 465);
+    }
+  }
+}
+
+fn open_doors(_maps: &mut Maps) {
+  unimplemented!()
+}
+
+fn close_doors(_maps: &mut Maps) {
+  unimplemented!()
+}
+
+fn reapply_blood(players: &[PlayerEntity], monsters: &[MonsterEntity], cursor: Cursor, maps: &mut Maps) {
+  for player in players {
+    if player.is_dead && player.pos.cursor() == cursor {
+      maps.level[cursor] = MapValue::Blood;
+      return;
+    }
+  }
+  for monster in monsters {
+    if monster.is_dead && monster.pos.cursor() == cursor {
+      if monster.kind == MonsterKind::Slime {
+        maps.level[cursor] = MapValue::SlimeCorpse;
+      } else {
+        maps.level[cursor] = MapValue::Blood;
+      }
+      return;
     }
   }
 }

@@ -1,8 +1,8 @@
 use crate::bitmap;
-use crate::bitmap::Bitmap;
+use crate::bitmap::MapValueSet;
 
 /// Bitmap of which map values are exposing border of surrounding dirt and stones
-pub const DIRT_BORDER_BITMAP: Bitmap<[u8; 32]> = bitmap!([
+pub const DIRT_BORDER_BITMAP: MapValueSet = bitmap!([
   0b0000_0000,
   0b0000_0000,
   0b0000_0000,
@@ -37,7 +37,7 @@ pub const DIRT_BORDER_BITMAP: Bitmap<[u8; 32]> = bitmap!([
   0b0000_0000,
 ]);
 
-pub const PUSHABLE_BITMAP: Bitmap<[u8; 32]> = bitmap!([
+pub const PUSHABLE_BITMAP: MapValueSet = bitmap!([
   0b0000_0000,
   0b0000_0000,
   0b0000_0000,

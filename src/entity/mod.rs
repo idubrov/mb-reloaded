@@ -1,7 +1,7 @@
 mod monster;
 mod player;
 
-pub use monster::{MonsterEntity, MonsterKind};
+pub use monster::{MonsterEntity, MonsterKind, Position};
 pub use player::{Equipment, Inventory, PlayerEntity, PlayerInfo};
 
 #[derive(Clone, Copy)]
