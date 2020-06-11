@@ -19,7 +19,8 @@ pub struct PlayersSaveError {
   path: PathBuf,
 }
 
-pub struct PlayerStats {
+#[derive(Clone)]
+pub struct RosterInfo {
   pub name: String,
   pub tournaments: u32,
   pub tournaments_wins: u32,
@@ -34,7 +35,7 @@ pub struct PlayerStats {
   pub history: Vec<u8>,
 }
 
-impl Default for PlayerStats {
+impl Default for RosterInfo {
   fn default() -> Self {
     Self {
       name: String::new(),
@@ -55,7 +56,7 @@ impl Default for PlayerStats {
 
 #[derive(Default)]
 pub struct PlayersRoster {
-  pub players: Box<[Option<PlayerStats>; 32]>,
+  pub players: Box<[Option<RosterInfo>; 32]>,
 }
 
 impl PlayersRoster {

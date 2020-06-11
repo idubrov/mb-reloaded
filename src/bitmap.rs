@@ -1,4 +1,4 @@
-use crate::map::MapValue;
+use crate::world::map::MapValue;
 use std::convert::{TryFrom, TryInto};
 
 #[macro_export]

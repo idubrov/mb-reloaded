@@ -1,7 +1,7 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
-use crate::map::{LevelInfo, LevelMap};
 use crate::menu::preview::generate_preview;
+use crate::world::map::{LevelInfo, LevelMap};
 use crate::Application;
 use rand::prelude::*;
 use sdl2::keyboard::Scancode;

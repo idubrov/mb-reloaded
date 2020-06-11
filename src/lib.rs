@@ -1,10 +1,11 @@
 use crate::context::ApplicationContext;
-use crate::entity::{PlayerEntity, PlayerInfo};
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
-use crate::map::{LevelInfo, LevelMap};
+use crate::roster::RosterInfo;
 use crate::settings::GameSettings;
+use crate::world::map::{LevelInfo, LevelMap};
+use crate::world::player::PlayerComponent;
 use sdl2::mixer::Music;
 use std::path::Path;
 
@@ -12,18 +13,17 @@ mod args;
 mod audio;
 pub mod bitmap;
 mod context;
-mod entity;
 mod error;
 pub mod fonts;
 mod glyphs;
 mod identities;
 pub mod images;
 mod keys;
-pub mod map;
 mod menu;
 mod options;
 mod roster;
 mod settings;
+pub mod world;
 
 const SCREEN_WIDTH: u32 = 640;
 const SCREEN_HEIGHT: u32 = 480;
@@ -44,25 +44,17 @@ pub fn main() -> Result<(), anyhow::Error> {
         map,
       };
       let settings = GameSettings::load(ctx.game_dir());
-      let player1 = PlayerInfo {
-        roster_index: 0,
+      let player1 = RosterInfo {
         name: "First".to_string(),
+        ..Default::default()
       };
-      let player2 = PlayerInfo {
-        roster_index: 0,
+      let player2 = RosterInfo {
         name: "Second".to_string(),
+        ..Default::default()
       };
-      // let player3 = PlayerInfo {
-      //   roster_index: 0,
-      //   name: "Third".to_string(),
-      // };
-      // let player4 = PlayerInfo {
-      //   roster_index: 0,
-      //   name: "Fourth".to_string(),
-      // };
       let mut players = vec![
-        PlayerEntity::new(player1, settings.keys.keys[0], u32::from(settings.options.cash)),
-        PlayerEntity::new(player2, settings.keys.keys[1], u32::from(settings.options.cash)),
+        PlayerComponent::new(player1, settings.keys.keys[0], &settings.options),
+        PlayerComponent::new(player2, settings.keys.keys[1], &settings.options),
         // PlayerEntity::new(player3, settings.keys.keys[1], u32::from(settings.options.cash)),
         // PlayerEntity::new(player4, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];

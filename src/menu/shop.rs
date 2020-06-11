@@ -1,11 +1,12 @@
 use crate::context::{Animation, ApplicationContext};
-use crate::entity::{Equipment, PlayerEntity};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::keys::Key;
-use crate::map::LevelMap;
 use crate::menu::preview::generate_preview;
 use crate::options::Options;
+use crate::world::equipment::Equipment;
+use crate::world::map::LevelMap;
+use crate::world::player::PlayerComponent;
 use crate::Application;
 use rand::Rng;
 use sdl2::keyboard::Scancode;
@@ -27,7 +28,7 @@ pub struct Prices {
 }
 
 struct PlayerState<'a> {
-  entity: &'a mut PlayerEntity,
+  entity: &'a mut PlayerComponent,
   /// `None` means level exit
   selection: Option<Equipment>,
   ready: bool,
@@ -80,8 +81,8 @@ impl Application<'_> {
     remaining_rounds: u16,
     options: &Options,
     preview_map: Option<&LevelMap>,
-    left: Option<&mut PlayerEntity>,
-    right: &mut PlayerEntity,
+    left: Option<&mut PlayerComponent>,
+    right: &mut PlayerComponent,
   ) -> Result<ShopResult, anyhow::Error> {
     let mut state = State {
       prices: Prices::new(options.free_market),
@@ -231,10 +232,10 @@ impl Application<'_> {
       .fill_rect(Rect::new(35 + offset_x, 58, 7 * 8, 8))
       .map_err(SdlError)?;
 
-    let power = state.entity.drilling_power();
+    let power = state.entity.initial_drilling_power();
     self
       .font
-      .render(canvas, 35 + offset_x, 16, palette[1], &state.entity.player.name)?;
+      .render(canvas, 35 + offset_x, 16, palette[1], &state.entity.stats.name)?;
     self
       .font
       .render(canvas, 35 + offset_x, 30, palette[3], &power.to_string())?;

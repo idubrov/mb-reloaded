@@ -1,6 +1,6 @@
 use crate::keys::KeysConfig;
-use crate::map::LevelInfo;
 use crate::options::Options;
+use crate::world::map::LevelInfo;
 use std::path::Path;
 use std::rc::Rc;
 

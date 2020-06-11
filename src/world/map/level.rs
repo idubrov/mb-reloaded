@@ -1,5 +1,6 @@
-use crate::entity::Direction;
-use crate::map::{Cursor, MAP_COLS, MAP_ROWS};
+use super::{Map, MAP_COLS, MAP_ROWS};
+use crate::world::actor::ActorKind;
+use crate::world::position::{Cursor, Direction};
 use num_enum::TryFromPrimitive;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
@@ -9,6 +10,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[error("Invalid map format")]
 pub struct InvalidMap;
+
+pub type LevelMap = Map<MapValue>;
 
 const RANDOM_TREASURES: [MapValue; 13] = [
   MapValue::SmallPickaxe,
@@ -27,40 +30,6 @@ const RANDOM_TREASURES: [MapValue; 13] = [
 ];
 const RANDOM_TREASURES_WEIGHTS: [usize; 13] = [18, 12, 8, 200, 200, 200, 200, 200, 180, 160, 140, 80, 3];
 
-#[derive(Clone)]
-pub struct LevelMap {
-  /// Map values
-  data: Vec<MapValue>,
-}
-
-impl std::ops::Index<usize> for LevelMap {
-  type Output = [MapValue];
-
-  fn index(&self, row: usize) -> &[MapValue] {
-    &self.data[row * MAP_COLS..][..MAP_COLS]
-  }
-}
-
-impl std::ops::IndexMut<usize> for LevelMap {
-  fn index_mut(&mut self, row: usize) -> &mut [MapValue] {
-    &mut self.data[row * MAP_COLS..][..MAP_COLS]
-  }
-}
-
-impl std::ops::Index<Cursor> for LevelMap {
-  type Output = MapValue;
-
-  fn index(&self, cursor: Cursor) -> &MapValue {
-    &self[cursor.row][cursor.col]
-  }
-}
-
-impl std::ops::IndexMut<Cursor> for LevelMap {
-  fn index_mut(&mut self, cursor: Cursor) -> &mut MapValue {
-    &mut self[cursor.row][cursor.col]
-  }
-}
-
 pub enum LevelInfo {
   Random,
   File { name: String, map: LevelMap },
@@ -70,7 +39,7 @@ impl LevelMap {
   /// Create completely empty map
   pub fn empty() -> LevelMap {
     let mut data = Vec::new();
-    data.resize(MAP_ROWS * MAP_COLS, MapValue::Passage);
+    data.resize(usize::from(MAP_ROWS * MAP_COLS), MapValue::Passage);
     LevelMap { data }
   }
 
@@ -81,10 +50,10 @@ impl LevelMap {
       return Err(InvalidMap);
     }
 
-    let mut data = Vec::with_capacity(MAP_ROWS * MAP_COLS);
+    let mut data = Vec::with_capacity(usize::from(MAP_ROWS * MAP_COLS));
     for row in 0..MAP_ROWS {
       // Two last bytes of the row are 0xd 0xa (newline), so 64 + 2 = 66
-      let row = &external_map[row * (MAP_COLS + 2)..][..MAP_COLS];
+      let row = &external_map[usize::from(row * (MAP_COLS + 2))..][..usize::from(MAP_COLS)];
       for value in row {
         // We could transmute here, but let's avoid all unsafe; amount of data is pretty small.
         data.push(MapValue::try_from(*value).unwrap());
@@ -95,9 +64,10 @@ impl LevelMap {
   }
 
   /// Export map in the format used in map files
+  #[allow(dead_code)]
   pub fn to_file_map(&self) -> Vec<u8> {
     // Each map is 45 lines 66 bytes each (64 columns plus "\r\n" at the end of each row)
-    let mut data = Vec::with_capacity(MAP_ROWS * (MAP_COLS + 2));
+    let mut data = Vec::with_capacity(usize::from(MAP_ROWS * (MAP_COLS + 2)));
     for row in 0..MAP_ROWS {
       for col in 0..MAP_COLS {
         data.push(self[row][col] as u8);
@@ -219,107 +189,96 @@ impl LevelMap {
     let mut rng = rand::thread_rng();
 
     // Step 1: replace lonely stones with boulders
-    for row in 1..MAP_ROWS - 1 {
-      for col in 1..MAP_COLS - 1 {
-        let cursor = Cursor::new(row, col);
-        if self[cursor].is_stone_like()
-          && self[cursor.to(Direction::Right)] == MapValue::Passage
-          && self[cursor.to(Direction::Left)] == MapValue::Passage
-          && self[cursor.to(Direction::Up)] == MapValue::Passage
-          && self[cursor.to(Direction::Down)] == MapValue::Passage
-        {
-          self[row][col] = MapValue::Boulder;
-        }
+    for cursor in Cursor::all_without_borders() {
+      if self[cursor].is_stone_like()
+        && self[cursor.to(Direction::Right)] == MapValue::Passage
+        && self[cursor.to(Direction::Left)] == MapValue::Passage
+        && self[cursor.to(Direction::Up)] == MapValue::Passage
+        && self[cursor.to(Direction::Down)] == MapValue::Passage
+      {
+        self[cursor] = MapValue::Boulder;
       }
     }
 
     // Step 2: replace certain patterns of sand with rounded stone corners
-    for row in 1..MAP_ROWS - 1 {
-      for col in 1..MAP_COLS - 1 {
-        if self[row][col] == MapValue::Passage {
-          let cursor = Cursor::new(row, col);
-          if self[cursor.to(Direction::Right)] == MapValue::Stone1
-            && self[cursor.to(Direction::Down)] == MapValue::Stone1
-            && self[cursor.to(Direction::Left)] == MapValue::Passage
-            && self[cursor.to(Direction::Up)] == MapValue::Passage
-          {
-            self[row][col] = MapValue::StoneTopLeft;
-          } else if self[cursor.to(Direction::Right)] == MapValue::Stone1
-            && self[cursor.to(Direction::Down)] == MapValue::Passage
-            && self[cursor.to(Direction::Left)] == MapValue::Passage
-            && self[cursor.to(Direction::Up)] == MapValue::Stone1
-          {
-            self[row][col] = MapValue::StoneBottomLeft;
-          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
-            && self[cursor.to(Direction::Down)] == MapValue::Stone1
-            && self[cursor.to(Direction::Left)] == MapValue::Stone1
-            && self[cursor.to(Direction::Up)] == MapValue::Passage
-          {
-            self[row][col] = MapValue::StoneTopRight;
-          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
-            && self[cursor.to(Direction::Down)] == MapValue::Passage
-            && self[cursor.to(Direction::Left)] == MapValue::Stone1
-            && self[cursor.to(Direction::Up)] == MapValue::Stone1
-          {
-            self[row][col] = MapValue::StoneBottomRight;
-          }
+    for cursor in Cursor::all_without_borders() {
+      if self[cursor] == MapValue::Passage {
+        if self[cursor.to(Direction::Right)] == MapValue::Stone1
+          && self[cursor.to(Direction::Down)] == MapValue::Stone1
+          && self[cursor.to(Direction::Left)] == MapValue::Passage
+          && self[cursor.to(Direction::Up)] == MapValue::Passage
+        {
+          self[cursor] = MapValue::StoneTopLeft;
+        } else if self[cursor.to(Direction::Right)] == MapValue::Stone1
+          && self[cursor.to(Direction::Down)] == MapValue::Passage
+          && self[cursor.to(Direction::Left)] == MapValue::Passage
+          && self[cursor.to(Direction::Up)] == MapValue::Stone1
+        {
+          self[cursor] = MapValue::StoneBottomLeft;
+        } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+          && self[cursor.to(Direction::Down)] == MapValue::Stone1
+          && self[cursor.to(Direction::Left)] == MapValue::Stone1
+          && self[cursor.to(Direction::Up)] == MapValue::Passage
+        {
+          self[cursor] = MapValue::StoneTopRight;
+        } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+          && self[cursor.to(Direction::Down)] == MapValue::Passage
+          && self[cursor.to(Direction::Left)] == MapValue::Stone1
+          && self[cursor.to(Direction::Up)] == MapValue::Stone1
+        {
+          self[cursor] = MapValue::StoneBottomRight;
         }
       }
     }
 
     // Step 3: round stone corners
-    for row in 1..MAP_ROWS - 1 {
-      for col in 1..MAP_COLS - 1 {
-        let cursor = Cursor::new(row, col);
-        if self[row][col] == MapValue::Stone1 {
-          if self[cursor.to(Direction::Right)].is_stone_like()
-            && self[cursor.to(Direction::Down)].is_stone_like()
-            && self[cursor.to(Direction::Left)] == MapValue::Passage
-            && self[cursor.to(Direction::Up)] == MapValue::Passage
-          {
-            self[row][col] = MapValue::StoneTopLeft;
-          } else if self[cursor.to(Direction::Right)].is_stone_like()
-            && self[cursor.to(Direction::Down)] == MapValue::Passage
-            && self[cursor.to(Direction::Left)] == MapValue::Passage
-            && self[cursor.to(Direction::Up)].is_stone_like()
-          {
-            self[row][col] = MapValue::StoneBottomLeft;
-          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
-            && self[cursor.to(Direction::Down)].is_stone_like()
-            && self[cursor.to(Direction::Left)].is_stone_like()
-            && self[cursor.to(Direction::Up)] == MapValue::Passage
-          {
-            self[row][col] = MapValue::StoneTopRight;
-          } else if self[cursor.to(Direction::Right)] == MapValue::Passage
-            && self[cursor.to(Direction::Down)] == MapValue::Passage
-            && self[cursor.to(Direction::Left)].is_stone_like()
-            && self[cursor.to(Direction::Up)].is_stone_like()
-          {
-            self[row][col] = MapValue::StoneBottomRight;
-          }
+    for cursor in Cursor::all_without_borders() {
+      if self[cursor] == MapValue::Stone1 {
+        if self[cursor.to(Direction::Right)].is_stone_like()
+          && self[cursor.to(Direction::Down)].is_stone_like()
+          && self[cursor.to(Direction::Left)] == MapValue::Passage
+          && self[cursor.to(Direction::Up)] == MapValue::Passage
+        {
+          self[cursor] = MapValue::StoneTopLeft;
+        } else if self[cursor.to(Direction::Right)].is_stone_like()
+          && self[cursor.to(Direction::Down)] == MapValue::Passage
+          && self[cursor.to(Direction::Left)] == MapValue::Passage
+          && self[cursor.to(Direction::Up)].is_stone_like()
+        {
+          self[cursor] = MapValue::StoneBottomLeft;
+        } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+          && self[cursor.to(Direction::Down)].is_stone_like()
+          && self[cursor.to(Direction::Left)].is_stone_like()
+          && self[cursor.to(Direction::Up)] == MapValue::Passage
+        {
+          self[cursor] = MapValue::StoneTopRight;
+        } else if self[cursor.to(Direction::Right)] == MapValue::Passage
+          && self[cursor.to(Direction::Down)] == MapValue::Passage
+          && self[cursor.to(Direction::Left)].is_stone_like()
+          && self[cursor.to(Direction::Up)].is_stone_like()
+        {
+          self[cursor] = MapValue::StoneBottomRight;
         }
       }
     }
 
     // Step 4: randomize sand and stone
-    for row in 0..MAP_ROWS {
-      for col in 0..MAP_COLS {
-        if self[row][col] == MapValue::Stone1 {
-          self[row][col] = *[MapValue::Stone1, MapValue::Stone2, MapValue::Stone3, MapValue::Stone4]
-            .choose(&mut rng)
-            .unwrap();
-        } else if self[row][col] == MapValue::Passage {
-          self[row][col] = *[MapValue::Sand1, MapValue::Sand2, MapValue::Sand3]
-            .choose(&mut rng)
-            .unwrap();
-        }
+    for cursor in Cursor::all() {
+      if self[cursor] == MapValue::Stone1 {
+        self[cursor] = *[MapValue::Stone1, MapValue::Stone2, MapValue::Stone3, MapValue::Stone4]
+          .choose(&mut rng)
+          .unwrap();
+      } else if self[cursor] == MapValue::Passage {
+        self[cursor] = *[MapValue::Sand1, MapValue::Sand2, MapValue::Sand3]
+          .choose(&mut rng)
+          .unwrap();
       }
     }
 
     // Step 5: place gravel
     for _ in 0..300 {
-      let (row, col) = self.pick_random_coord(MapValue::is_sand);
-      self[row][col] = *[MapValue::LightGravel, MapValue::HeavyGravel].choose(&mut rng).unwrap();
+      let cursor = self.pick_random_coord(MapValue::is_sand);
+      self[cursor] = *[MapValue::LightGravel, MapValue::HeavyGravel].choose(&mut rng).unwrap();
     }
   }
 
@@ -339,44 +298,34 @@ impl LevelMap {
       if treasures_in_stone > 20 {
         let col = rng.gen_range(0, MAP_COLS);
         let row = rng.gen_range(0, MAP_ROWS);
-        self[row][col] = item;
+        self[Cursor::new(row, col)] = item;
       } else {
-        let (row, col) = self.pick_random_coord(MapValue::is_stone);
-        self[row][col] = item;
+        let cursor = self.pick_random_coord(MapValue::is_stone);
+        self[cursor] = item;
         treasures_in_stone += 1;
       }
     }
   }
 
   /// Generate various random items
+  /// Note that original game would also place items on borders, but we don't.
   fn generate_random_items(&mut self) {
     let mut rng = rand::thread_rng();
     while rng.gen_range(0, 100) > 70 {
-      let col = rng.gen_range(1, MAP_COLS - 1);
-      let row = rng.gen_range(1, MAP_ROWS - 1);
-      self[row][col] = MapValue::Boulder;
+      self[random_coord()] = MapValue::Boulder;
     }
 
     while rng.gen_range(0, 100) > 70 {
-      let col = rng.gen_range(1, MAP_COLS - 1);
-      let row = rng.gen_range(1, MAP_ROWS - 1);
-      self[row][col] = MapValue::WeaponsCrate;
+      self[random_coord()] = MapValue::WeaponsCrate;
     }
 
     while rng.gen_range(0, 100) > 65 {
-      let col = rng.gen_range(1, MAP_COLS - 1);
-      let row = rng.gen_range(1, MAP_ROWS - 1);
-      self[row][col] = MapValue::Medikit;
+      self[random_coord()] = MapValue::Medikit;
     }
 
     while rng.gen_range(0, 100) > 70 {
-      let col = rng.gen_range(1, MAP_COLS - 1);
-      let row = rng.gen_range(1, MAP_ROWS - 1);
-      self[row][col] = MapValue::Teleport;
-
-      let col = rng.gen_range(1, MAP_COLS - 1);
-      let row = rng.gen_range(1, MAP_ROWS - 1);
-      self[row][col] = MapValue::Teleport;
+      self[random_coord()] = MapValue::Teleport;
+      self[random_coord()] = MapValue::Teleport;
     }
   }
 
@@ -394,28 +343,24 @@ impl LevelMap {
   }
 
   /// Pick random coordinate such that its map value matches the predicate. Returns row and column.
-  fn pick_random_coord(&self, predicate: impl Fn(MapValue) -> bool) -> (usize, usize) {
-    let mut rng = rand::thread_rng();
-    let mut col = rng.gen_range(0, MAP_COLS);
-    let mut row = rng.gen_range(0, MAP_ROWS);
-
+  fn pick_random_coord(&self, predicate: impl Fn(MapValue) -> bool) -> Cursor {
+    let mut cursor = random_coord();
     for _ in 0..MAP_ROWS * MAP_COLS {
-      if predicate(self[row][col]) {
+      if predicate(self[cursor]) {
         break;
       }
 
-      if col < MAP_COLS - 1 {
-        col += 1;
+      if cursor.col < MAP_COLS - 1 {
+        cursor.col += 1;
       } else {
-        col = 0;
-        row += 1;
+        cursor.col = 0;
+        cursor.row += 1;
       }
-      if row > MAP_ROWS - 1 {
-        col = rng.gen_range(0, MAP_COLS);
-        row = rng.gen_range(0, MAP_ROWS);
+      if cursor.row > MAP_ROWS - 1 {
+        cursor = random_coord();
       }
     }
-    (row, col)
+    cursor
   }
 
   pub fn generate_entrances(&mut self, players: u8) {
@@ -463,6 +408,13 @@ impl LevelMap {
       }
     }
   }
+}
+
+fn random_coord() -> Cursor {
+  let mut rng = rand::thread_rng();
+  let col = rng.gen_range(1, MAP_COLS - 1);
+  let row = rng.gen_range(1, MAP_ROWS - 1);
+  Cursor::new(row, col)
 }
 
 /// Enum for all possible map values.
@@ -785,10 +737,36 @@ impl MapValue {
       _ => false,
     }
   }
+
+  /// If map value is a monster, return its actor kind and direction.
+  pub fn monster(self) -> Option<(ActorKind, Direction)> {
+    Some(match self {
+      MapValue::FurryRight => (ActorKind::Furry, Direction::Right),
+      MapValue::FurryLeft => (ActorKind::Furry, Direction::Left),
+      MapValue::FurryUp => (ActorKind::Furry, Direction::Up),
+      MapValue::FurryDown => (ActorKind::Furry, Direction::Down),
+
+      MapValue::GrenadierRight => (ActorKind::Grenadier, Direction::Right),
+      MapValue::GrenadierLeft => (ActorKind::Grenadier, Direction::Left),
+      MapValue::GrenadierUp => (ActorKind::Grenadier, Direction::Up),
+      MapValue::GrenadierDown => (ActorKind::Grenadier, Direction::Down),
+
+      MapValue::SlimeRight => (ActorKind::Slime, Direction::Right),
+      MapValue::SlimeLeft => (ActorKind::Slime, Direction::Left),
+      MapValue::SlimeUp => (ActorKind::Slime, Direction::Up),
+      MapValue::SlimeDown => (ActorKind::Slime, Direction::Down),
+
+      MapValue::AlienRight => (ActorKind::Alien, Direction::Right),
+      MapValue::AlienLeft => (ActorKind::Alien, Direction::Left),
+      MapValue::AlienUp => (ActorKind::Alien, Direction::Up),
+      MapValue::AlienDown => (ActorKind::Alien, Direction::Down),
+      _ => return None,
+    })
+  }
 }
 
 /// Apply random offset to the coordinate
-fn random_offset(mut coord: usize, max: usize) -> usize {
+fn random_offset(mut coord: u16, max: u16) -> u16 {
   let mut rng = rand::thread_rng();
 
   // Note: original game uses condition `x < 1` here (for both rows and columns). We use `x < 2` so

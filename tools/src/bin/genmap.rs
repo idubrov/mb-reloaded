@@ -25,7 +25,7 @@ enum ToolError {
 fn main() -> Result<(), anyhow::Error> {
   let args: Args = structopt::StructOpt::from_args();
 
-  let map = mb_reloaded::map::LevelMap::random_map(args.treasures);
+  let map = mb_reloaded::world::map::LevelMap::random_map(args.treasures);
   let data = map.to_file_map();
 
   write_map(&args.output, &data).map_err(|source| ToolError::OutputWriteError {

@@ -1,4 +1,4 @@
-use crate::map::{LevelMap, MapValue};
+use crate::world::map::{LevelMap, MapValue};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::render::{Texture, TextureCreator};
 use sdl2::video::WindowContext;
@@ -26,12 +26,7 @@ pub fn generate_preview<'t>(
 
 /// Get color index for preview pixel of a given map value.
 fn preview_pixel(value: MapValue) -> usize {
-  if (value >= MapValue::StoneTopLeft && value <= MapValue::StoneBottomRight)
-    || (value >= MapValue::StoneBottomLeft && value <= MapValue::Stone4)
-    || value == MapValue::Barrel
-    || value == MapValue::StoneLightCracked
-    || value == MapValue::StoneHeavyCracked
-  {
+  if value.is_stone_like() || value == MapValue::Boulder || value == MapValue::Barrel {
     9
   } else if value == MapValue::Diamond || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown) {
     5

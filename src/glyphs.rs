@@ -1,7 +1,9 @@
-use crate::entity::{Direction, Equipment, MonsterKind};
 use crate::error::ApplicationError::SdlError;
 use crate::images::TexturePalette;
-use crate::map::MapValue;
+use crate::world::actor::ActorKind;
+use crate::world::equipment::Equipment;
+use crate::world::map::MapValue;
+use crate::world::position::Direction;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, WindowCanvas};
 
@@ -38,7 +40,7 @@ pub enum Glyph {
   Map(MapValue),
   SandBorder(Direction),
   StoneBorder(Direction),
-  Monster(MonsterKind, Direction, Digging, AnimationPhase),
+  Monster(ActorKind, Direction, Digging, AnimationPhase),
 }
 
 impl Glyph {
@@ -76,18 +78,18 @@ impl Glyph {
       Glyph::Monster(kind, dir, digging, anim) => {
         let anim = anim as u8;
         let (pos_x, pos_y) = match kind {
-          MonsterKind::Furry => (160, 50),
-          MonsterKind::Grenadier => (160, 60),
-          MonsterKind::Slime => (160, 70),
-          MonsterKind::Alien => (0, 80),
-          MonsterKind::Player1 if digging == Digging::Pickaxe => (160, 200),
-          MonsterKind::Player2 if digging == Digging::Pickaxe => (0, 200),
-          MonsterKind::Player3 if digging == Digging::Pickaxe => (0, 210),
-          MonsterKind::Player4 if digging == Digging::Pickaxe => (160, 210),
-          MonsterKind::Player1 => (160, 10),
-          MonsterKind::Player2 => (160, 0),
-          MonsterKind::Player3 => (160, 30),
-          MonsterKind::Player4 => (160, 40),
+          ActorKind::Furry => (160, 50),
+          ActorKind::Grenadier => (160, 60),
+          ActorKind::Slime => (160, 70),
+          ActorKind::Alien => (0, 80),
+          ActorKind::Player1 if digging == Digging::Pickaxe => (160, 200),
+          ActorKind::Player2 if digging == Digging::Pickaxe => (0, 200),
+          ActorKind::Player3 if digging == Digging::Pickaxe => (0, 210),
+          ActorKind::Player4 if digging == Digging::Pickaxe => (160, 210),
+          ActorKind::Player1 => (160, 10),
+          ActorKind::Player2 => (160, 0),
+          ActorKind::Player3 => (160, 30),
+          ActorKind::Player4 => (160, 40),
         };
         let pos_x = pos_x + (dir as i16) * 40 + i16::from(anim) * 10;
         (pos_x, pos_y, pos_x + 9, pos_y + 9)

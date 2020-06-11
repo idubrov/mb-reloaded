@@ -2,11 +2,10 @@
 //!
 //! Note that this screen in particular behaves a bit differently from the original one.
 use crate::context::{Animation, ApplicationContext, InputEvent};
-use crate::entity::PlayerInfo;
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::Glyph;
 use crate::identities::Identities;
-use crate::roster::{PlayerStats, PlayersRoster};
+use crate::roster::{PlayersRoster, RosterInfo};
 use crate::Application;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -27,11 +26,11 @@ struct State {
 
 impl State {
   /// Return stats for the player with the given index
-  fn stats(&self, idx: u8) -> Option<&PlayerStats> {
+  fn stats(&self, idx: u8) -> Option<&RosterInfo> {
     self.roster.players[usize::from(idx)].as_ref()
   }
 
-  fn active_stats(&self) -> Option<&PlayerStats> {
+  fn active_stats(&self) -> Option<&RosterInfo> {
     if self.active_player < 4 {
       if let Some(player) = self.identities.players[usize::from(self.active_player)] {
         return self.stats(player);
@@ -96,7 +95,7 @@ impl Application<'_> {
     &self,
     ctx: &mut ApplicationContext,
     total_players: u8,
-  ) -> Result<Vec<PlayerInfo>, anyhow::Error> {
+  ) -> Result<Vec<RosterInfo>, anyhow::Error> {
     let mut state = State {
       players: total_players,
       roster: PlayersRoster::load(ctx.game_dir())?,
@@ -172,12 +171,12 @@ impl Application<'_> {
       selected.reserve(usize::from(total_players));
       for idx in 0..total_players {
         let roster_index = state.identities.players[usize::from(idx)].unwrap();
-        let name = state.roster.players[usize::from(roster_index)]
-          .as_ref()
-          .unwrap()
-          .name
-          .to_owned();
-        selected.push(PlayerInfo { roster_index, name });
+        selected.push(
+          state.roster.players[usize::from(roster_index)]
+            .as_ref()
+            .unwrap()
+            .clone(),
+        );
       }
     }
     Ok(selected)
@@ -335,7 +334,7 @@ impl Application<'_> {
       ctx.present()?;
     }
 
-    let mut new_player = PlayerStats::default();
+    let mut new_player = RosterInfo::default();
     new_player.name = name;
     state.roster.players[usize::from(player_idx)] = Some(new_player);
 
@@ -422,7 +421,7 @@ impl Application<'_> {
   }
 
   /// Render player statistics
-  fn render_stats(&self, canvas: &mut WindowCanvas, stats: Option<&PlayerStats>) -> Result<(), anyhow::Error> {
+  fn render_stats(&self, canvas: &mut WindowCanvas, stats: Option<&RosterInfo>) -> Result<(), anyhow::Error> {
     let white = self.select_players.palette[1];
     let red_color = self.select_players.palette[3];
 
