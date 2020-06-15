@@ -34,6 +34,16 @@ impl ActorKind {
       _ => unimplemented!(),
     }
   }
+
+  pub fn speed(self) -> u16 {
+    match self {
+      ActorKind::Furry => 6,
+      ActorKind::Grenadier => 3,
+      ActorKind::Slime => 2,
+      ActorKind::Alien => 100,
+      _ => unimplemented!(),
+    }
+  }
 }
 
 /// Actor component is an active entity on the map. It has position, visual representation,
@@ -54,6 +64,8 @@ pub struct ActorComponent {
   pub owner: Option<EntityIndex>,
   /// Cash accumulated in the current map; will be lost on death.
   pub accumulated_cash: u32,
+  /// Countdown of player activated acceleration bonus
+  pub accelerator_count: u32,
 }
 
 impl Default for ActorComponent {
@@ -70,6 +82,7 @@ impl Default for ActorComponent {
       is_dead: false,
       owner: None,
       accumulated_cash: 0,
+      accelerator_count: 0,
     }
   }
 }

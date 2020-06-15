@@ -1,6 +1,7 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::{AnimationPhase, Digging, Glyph};
+use crate::keys::Key;
 use crate::settings::GameSettings;
 use crate::world::actor::{ActorComponent, ActorKind};
 use crate::world::equipment::Equipment;
@@ -11,6 +12,7 @@ use crate::world::{EntityIndex, Maps, World};
 use crate::Application;
 use rand::prelude::*;
 use rand::Rng;
+use sdl2::event::Event;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
@@ -70,6 +72,7 @@ impl Application<'_> {
     level: &LevelInfo,
     settings: &GameSettings,
   ) -> Result<bool, anyhow::Error> {
+    let darkness = settings.options.darkness || players.len() == 1;
     let level = match level {
       LevelInfo::Random => {
         let mut level = LevelMap::random_map(settings.options.treasures);
@@ -79,23 +82,21 @@ impl Application<'_> {
       LevelInfo::File { map, .. } => map.clone(),
     };
 
-    let mut world = World::create(level, players, settings.options.darkness && players.len() > 1);
-
     // Play shop music
-    self.music2.play(-1).map_err(SdlError)?;
-    sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
+    if std::env::var("DEV").is_err() {
+      self.music2.play(-1).map_err(SdlError)?;
+      sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
 
-    let mut it = world.players.iter_mut();
-    while let Some(right) = it.next() {
-      let left = it.next();
-      let remaining = settings.options.rounds - round;
-      let preview_map = if settings.options.darkness {
-        None
-      } else {
-        Some(&world.maps.level)
-      };
-      self.shop(ctx, remaining, &settings.options, preview_map, left, right)?;
+      let mut it = players.iter_mut();
+      while let Some(right) = it.next() {
+        let left = it.next();
+        let remaining = settings.options.rounds - round;
+        let preview_map = if darkness { None } else { Some(&level) };
+        self.shop(ctx, remaining, &settings.options, preview_map, left, right)?;
+      }
     }
+
+    let mut world = World::create(level, players, darkness);
 
     // FIXME: start playing random music from level music
     sdl2::mixer::Music::halt();
@@ -105,26 +106,88 @@ impl Application<'_> {
       Ok(())
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
-    ctx.wait_key_pressed();
 
-    // FIXME: dev!
-    if true {
-      for monster in &mut world.actors {
-        monster.moving = true;
-      }
+    let mut end_round_counter = 0;
+    let mut round_counter = 0;
+    loop {
+      // FIXME: check if escape is pressed
+      // FIXME: check if game is paused
+      // FIXME: check F5 -- toggle music
+      // FIXME: check F10 -- exit game
 
-      loop {
-        ctx.with_render_context(|canvas| {
-          for monster in world.players.len()..world.actors.len() {
-            self.animate_actor(canvas, monster, &mut world)?;
+      ctx.with_render_context(|canvas| {
+        self.bombs_clock(canvas, &mut world)?;
+        self.atomic_shake(canvas, &mut world)?;
+        if round_counter % 5 == 0 {
+          if world.is_single_player() {
+            if world.actors[0].is_dead {
+              if end_round_counter == 0 {
+                world.players[0].lives -= 1;
+                // FIXME: end round
+                if world.players[0].lives == 0 {
+                  // FIXME: end game
+                }
+                self.render_lives(canvas, world.players[0].lives)?;
+              } else {
+                end_round_counter += 2;
+              }
+            }
+          } else if world.alive_players() < 2 {
+            end_round_counter += 3;
           }
-          Ok(())
-        })?;
-        ctx.present()?;
-        ctx.pump_events();
+        }
+
+        for monster in 0..world.players.len() {
+          if !world.actors[monster].is_dead {
+            self.animate_actor(canvas, monster, &mut world)?;
+            if world.actors[monster].accelerator_count > 0 {
+              self.animate_actor(canvas, monster, &mut world)?;
+            }
+          }
+
+          if round_counter % 2 == 0 {
+            // FIXME: player keys
+            // FIXME: check player died
+          }
+        }
+        Ok(())
+      })?;
+      ctx.present()?;
+
+      // Handle player commands
+      if round_counter % 2 == 0 {
+        // FIXME: in original game, command has slight delay on facing direction
+        //  However, facing seems to be only used when holding still, so doesn't really matter much.
+        for event in ctx.poll_iter() {
+          if let Event::KeyDown { scancode, .. } = event {
+            for player in 0..world.players.len() {
+              let keys = &world.players[player].keys;
+              let mut actor = &mut world.actors[player];
+              if keys[Key::Up] == scancode {
+                actor.facing = Direction::Up;
+                actor.moving = true;
+              } else if keys[Key::Down] == scancode {
+                actor.facing = Direction::Down;
+                actor.moving = true;
+              } else if keys[Key::Left] == scancode {
+                actor.facing = Direction::Left;
+                actor.moving = true;
+              } else if keys[Key::Right] == scancode {
+                actor.facing = Direction::Right;
+                actor.moving = true;
+              }
+            }
+          }
+        }
       }
+
+      round_counter += 1;
+      if round_counter % 20 == 0 {
+        // FIXME: update remaining time indicator
+      }
+
+      std::thread::sleep(std::time::Duration::from_millis(20));
     }
-    Ok(true)
   }
 
   fn render_game_screen(&self, canvas: &mut WindowCanvas, world: &World) -> Result<(), anyhow::Error> {
@@ -142,8 +205,8 @@ impl Application<'_> {
     }
 
     self.render_players_info(canvas, world)?;
-    if world.players.len() == 1 {
-      unimplemented!("render lives");
+    if world.is_single_player() {
+      self.render_lives(canvas, world.players[0].lives)?;
     } else {
       // Time bar
       canvas.set_draw_color(self.players.palette[6]);
@@ -273,6 +336,10 @@ impl Application<'_> {
     }
 
     Ok(())
+  }
+
+  fn render_lives(&self, _canvas: &mut WindowCanvas, _lives: u32) -> Result<(), anyhow::Error> {
+    unimplemented!()
   }
 
   fn render_actor(&self, canvas: &mut WindowCanvas, actor: &ActorComponent) -> Result<(), anyhow::Error> {
@@ -686,6 +753,74 @@ impl Application<'_> {
       .glyphs
       .render(canvas, i32::from(pos.x) - 5, i32::from(pos.y) - 5, glyph)?;
     maps.fog[cursor].reveal();
+    Ok(())
+  }
+
+  fn bombs_clock(&self, canvas: &mut WindowCanvas, world: &mut World) -> Result<(), anyhow::Error> {
+    for cursor in Cursor::all() {
+      match world.maps.timer[cursor] {
+        0 => {}
+        1 => {
+          world.maps.timer[cursor] = 0;
+          if let Some(extinguished) = self.check_fuse_went_out(world.maps.level[cursor]) {
+            world.maps.level[cursor] = extinguished;
+            self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+          } else {
+            self.explode_entity(canvas, cursor, world)?;
+          }
+        }
+        clock => {
+          world.maps.timer[cursor] = clock - 1;
+          let replacement = match world.maps.level[cursor] {
+            MapValue::SmallBomb1 if clock <= 60 => MapValue::SmallBomb2,
+            MapValue::SmallBomb2 if clock <= 30 => MapValue::SmallBomb3,
+            MapValue::BigBomb1 if clock <= 60 => MapValue::BigBomb2,
+            MapValue::BigBomb2 if clock <= 30 => MapValue::BigBomb3,
+            MapValue::Dynamite1 if clock <= 40 => MapValue::Dynamite2,
+            MapValue::Dynamite2 if clock <= 20 => MapValue::Dynamite3,
+            MapValue::Napalm1 => MapValue::Napalm2,
+            MapValue::Napalm2 => MapValue::Napalm1,
+            MapValue::Atomic1 => MapValue::Atomic2,
+            MapValue::Atomic2 => MapValue::Atomic3,
+            MapValue::Atomic3 => MapValue::Atomic1,
+            _ => continue,
+          };
+          world.maps.level[cursor] = replacement;
+          self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+        }
+      }
+    }
+    Ok(())
+  }
+
+  /// Make a dice roll to check if fuse went out
+  fn check_fuse_went_out(&self, value: MapValue) -> Option<MapValue> {
+    let replacement = match value {
+      MapValue::SmallBomb3 => MapValue::SmallBombExtinguished,
+      MapValue::BigBomb3 => MapValue::BigBombExtinguished,
+      MapValue::Dynamite3 => MapValue::DynamiteExtinguished,
+      MapValue::Napalm1 | MapValue::Napalm2 => MapValue::NapalmExtinguished,
+      _ => return None,
+    };
+    let mut rnd = rand::thread_rng();
+    if rnd.gen_range(0, 1000) <= 10_000 {
+      Some(replacement)
+    } else {
+      None
+    }
+  }
+
+  fn explode_entity(
+    &self,
+    _canvas: &mut WindowCanvas,
+    _cursor: Cursor,
+    _world: &mut World,
+  ) -> Result<(), anyhow::Error> {
+    unimplemented!()
+  }
+
+  fn atomic_shake(&self, _canvas: &mut WindowCanvas, _world: &mut World) -> Result<(), anyhow::Error> {
+    // FIXME: implement
     Ok(())
   }
 }

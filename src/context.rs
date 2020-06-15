@@ -179,8 +179,8 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     }
   }
 
-  pub fn pump_events(&mut self) {
-    self.events.pump_events();
+  pub fn poll_iter<'ev>(&'ev mut self) -> impl Iterator<Item = Event> + 'ev {
+    self.events.poll_iter()
   }
 
   pub fn game_dir(&self) -> &Path {

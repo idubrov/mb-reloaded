@@ -1,4 +1,4 @@
-use crate::world::actor::ActorComponent;
+use crate::world::actor::{ActorComponent, ActorKind};
 use crate::world::equipment::Equipment;
 use crate::world::map::{FogMap, HitsMap, LevelMap, MapValue, TimerMap};
 use crate::world::player::PlayerComponent;
@@ -63,14 +63,37 @@ impl<'p> World<'p> {
   pub fn player_mut(&mut self, entity: EntityIndex) -> Option<&mut PlayerComponent> {
     self.players.get_mut(entity)
   }
+
+  // If game is a single player game
+  pub fn is_single_player(&self) -> bool {
+    self.players.len() == 1
+  }
+
+  /// Count alive players
+  pub fn alive_players(&self) -> usize {
+    self.actors[0..self.players.len()]
+      .iter()
+      .filter(|actor| !actor.is_dead)
+      .count()
+  }
 }
 
 fn spawn_actors(map: &mut LevelMap, players_count: usize) -> Vec<ActorComponent> {
   let mut actors = Vec::new();
 
   // Initialize players
-  for _ in 0..players_count {
-    actors.push(Default::default());
+  for player in 0..players_count {
+    let kind = match player {
+      0 => ActorKind::Player1,
+      1 => ActorKind::Player2,
+      2 => ActorKind::Player3,
+      3 => ActorKind::Player4,
+      _ => unimplemented!(),
+    };
+    actors.push(ActorComponent {
+      kind,
+      ..Default::default()
+    });
   }
   init_players_positions(&mut actors);
 
