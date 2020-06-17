@@ -6,6 +6,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::mixer::{Music, AUDIO_S16LSB};
 use sdl2::pixels::{Color, PixelFormatEnum};
+use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use sdl2::EventPump;
@@ -139,9 +140,26 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   }
 
   pub fn present(&mut self) -> Result<(), anyhow::Error> {
+    self.present_shake(0)
+  }
+
+  pub fn present_shake(&mut self, shake: u32) -> Result<(), anyhow::Error> {
     self.buffer.set_blend_mode(BlendMode::None);
     self.buffer.set_alpha_mod(255);
-    self.canvas.copy(&self.buffer, None, None).map_err(SdlError)?;
+    let (w, h) = self.canvas.output_size().map_err(SdlError)?;
+    let mut target = Rect::new(0, 0, w, h);
+
+    // Render "shaking" screen effect
+    if shake != 0 {
+      let top = shake * 10 * h / SCREEN_HEIGHT;
+      target.set_y(-(top as i32));
+      self.canvas.set_draw_color(Color::BLACK);
+      self
+        .canvas
+        .fill_rect(Rect::new(0, (h - top) as i32, w, top))
+        .map_err(SdlError)?;
+    }
+    self.canvas.copy(&self.buffer, None, Some(target)).map_err(SdlError)?;
     self.canvas.present();
     Ok(())
   }

@@ -65,7 +65,7 @@ pub struct ActorComponent {
   /// Cash accumulated in the current map; will be lost on death.
   pub accumulated_cash: u32,
   /// Countdown of player activated acceleration bonus
-  pub accelerator_count: u32,
+  pub super_drill_count: u32,
 }
 
 impl Default for ActorComponent {
@@ -82,7 +82,7 @@ impl Default for ActorComponent {
       is_dead: false,
       owner: None,
       accumulated_cash: 0,
-      accelerator_count: 0,
+      super_drill_count: 0,
     }
   }
 }

@@ -115,6 +115,14 @@ impl Application<'_> {
       // FIXME: check F5 -- toggle music
       // FIXME: check F10 -- exit game
 
+      if round_counter % 18 == 0 {
+        world.update_super_drill();
+      }
+
+      if world.shake > 0 {
+        world.shake -= 1;
+      }
+
       ctx.with_render_context(|canvas| {
         self.bombs_clock(canvas, &mut world)?;
         self.atomic_shake(canvas, &mut world)?;
@@ -140,7 +148,7 @@ impl Application<'_> {
         for monster in 0..world.players.len() {
           if !world.actors[monster].is_dead {
             self.animate_actor(canvas, monster, &mut world)?;
-            if world.actors[monster].accelerator_count > 0 {
+            if world.actors[monster].super_drill_count > 0 {
               self.animate_actor(canvas, monster, &mut world)?;
             }
           }
@@ -152,7 +160,12 @@ impl Application<'_> {
         }
         Ok(())
       })?;
-      ctx.present()?;
+
+      if world.shake % 2 != 0 {
+        ctx.present_shake(world.shake)?;
+      } else {
+        ctx.present()?;
+      }
 
       // Handle player commands
       if round_counter % 2 == 0 {
@@ -175,6 +188,9 @@ impl Application<'_> {
               } else if keys[Key::Right] == scancode {
                 actor.facing = Direction::Right;
                 actor.moving = true;
+              } else if keys[Key::Bomb] == scancode {
+                // FIXME: temporary
+                world.shake = 10;
               }
             }
           }
@@ -372,7 +388,7 @@ impl Application<'_> {
       Direction::Left => (delta_x, delta_y, delta_x > 5, actor.pos.x > 5),
       Direction::Right => (delta_x, delta_y, delta_x < 5, actor.pos.x < 635),
       Direction::Up => (delta_y, delta_x, delta_y > 5, actor.pos.y > 35),
-      Direction::Down => (delta_y, delta_x, delta_y < 5, actor.pos.x < 475),
+      Direction::Down => (delta_y, delta_x, delta_y < 5, actor.pos.y < 475),
     };
 
     // Vertically centered enough to be moving in the current direction

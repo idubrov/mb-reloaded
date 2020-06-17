@@ -24,6 +24,7 @@ pub struct World<'p> {
   pub players: &'p mut [PlayerComponent],
   // First `players.len()` actors are players
   pub actors: Vec<ActorComponent>,
+  pub shake: u32,
 }
 
 pub type EntityIndex = usize;
@@ -56,6 +57,7 @@ impl<'p> World<'p> {
       },
       players,
       actors,
+      shake: 0,
     }
   }
 
@@ -75,6 +77,17 @@ impl<'p> World<'p> {
       .iter()
       .filter(|actor| !actor.is_dead)
       .count()
+  }
+
+  pub fn update_super_drill(&mut self) {
+    for actor in &mut self.actors[0..self.players.len()] {
+      if actor.super_drill_count > 0 {
+        actor.super_drill_count -= 1;
+        if actor.super_drill_count == 0 {
+          actor.drilling -= 300;
+        }
+      }
+    }
   }
 }
 
