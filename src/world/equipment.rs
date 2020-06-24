@@ -7,7 +7,7 @@ use std::convert::TryInto;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 pub enum Equipment {
   SmallBomb,
-  LargeBomb,
+  BigBomb,
   Dynamite,
   AtomicBomb,
   SmallRadio,
@@ -55,5 +55,34 @@ impl Equipment {
 
   pub fn base_price(self) -> u32 {
     Self::PRICES[self as usize]
+  }
+
+  /// Create an iterator that loops over all inventory items starting from the given one
+  pub fn selection_iter(self) -> impl Iterator<Item = Equipment> {
+    SelectionIter {
+      start: self,
+      current: self,
+    }
+  }
+}
+
+struct SelectionIter {
+  start: Equipment,
+  current: Equipment,
+}
+
+impl Iterator for SelectionIter {
+  type Item = Equipment;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    let next: Equipment = (((self.current as u8) + 1) % (Equipment::TOTAL as u8))
+      .try_into()
+      .unwrap();
+    if next == self.start {
+      None
+    } else {
+      self.current = next;
+      Some(next)
+    }
   }
 }

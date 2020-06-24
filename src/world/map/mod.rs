@@ -5,7 +5,7 @@ pub const MAP_ROWS: u16 = 45;
 pub const MAP_COLS: u16 = 64;
 
 use crate::world::position::Cursor;
-pub use bitmaps::{DIRT_BORDER_BITMAP, PUSHABLE_BITMAP};
+pub use bitmaps::{CANNOT_PLACE_BOMB, DIRT_BORDER_BITMAP, PUSHABLE_BITMAP};
 pub use level::{InvalidMap, LevelInfo, LevelMap, MapValue};
 use rand::prelude::*;
 use ref_cast::RefCast;
@@ -101,7 +101,7 @@ fn hits(value: MapValue) -> i32 {
     MapValue::Stone2 => 2150,
     MapValue::Stone3 => 2200,
     MapValue::Stone4 => 2100,
-    MapValue::Plastic | MapValue::BioMass => 400,
+    MapValue::Plastic | MapValue::Biomass => 400,
     MapValue::StoneLightCracked => 1000,
     MapValue::StoneHeavyCracked => 500,
     MapValue::Brick => 8000,
@@ -148,7 +148,7 @@ impl Map<MapValue> {
       data: vec![0; usize::from(MAP_COLS * MAP_ROWS)],
     };
     for cursor in Cursor::all() {
-      if self[cursor] == MapValue::BioMass {
+      if self[cursor] == MapValue::Biomass {
         map[cursor] = rng.gen_range(0, 30);
       }
     }

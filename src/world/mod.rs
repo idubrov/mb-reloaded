@@ -1,8 +1,9 @@
+use crate::keys::Key;
 use crate::world::actor::{ActorComponent, ActorKind};
 use crate::world::equipment::Equipment;
-use crate::world::map::{FogMap, HitsMap, LevelMap, MapValue, TimerMap};
+use crate::world::map::{FogMap, HitsMap, LevelMap, MapValue, TimerMap, CANNOT_PLACE_BOMB};
 use crate::world::player::PlayerComponent;
-use crate::world::position::{Cursor, Position};
+use crate::world::position::{Cursor, Direction, Position};
 use rand::prelude::*;
 
 pub mod actor;
@@ -88,6 +89,191 @@ impl<'p> World<'p> {
         }
       }
     }
+  }
+
+  pub fn player_action(&mut self, player: usize, key: Key) {
+    let mut direction = None;
+    let selection = self.players[player].selection;
+    match key {
+      Key::Up => {
+        direction = Some(Direction::Up);
+      }
+      Key::Down => {
+        direction = Some(Direction::Down);
+      }
+      Key::Left => {
+        direction = Some(Direction::Left);
+      }
+      Key::Right => {
+        direction = Some(Direction::Right);
+      }
+      Key::Stop => {
+        self.actors[player].moving = false;
+      }
+      Key::Bomb => {
+        self.activate_item(player);
+      }
+      Key::Choose => {
+        let inventory = &self.players[player].inventory;
+        let next = selection
+          .selection_iter()
+          .filter(|item| is_selectable(*item))
+          .find(|item| inventory[*item] > 0)
+          .unwrap_or(selection);
+        self.players[player].selection = next;
+        // FIXME: re-render selection and count!
+      }
+      Key::Remote => {
+        unimplemented!();
+      }
+    }
+    if let Some(direction) = direction {
+      let mut actor = &mut self.actors[player];
+      actor.facing = direction;
+      actor.moving = true;
+    }
+  }
+
+  fn activate_item(&mut self, player: usize) {
+    let item = self.players[player].selection;
+
+    if self.players[player].inventory[item] == 0 {
+      // Nothing to use
+      return;
+    }
+
+    let cursor = self.actors[player].pos.cursor();
+    match item {
+      Equipment::Flamethrower => {
+        unimplemented!("flamethrower");
+      }
+      Equipment::Clone => {
+        unimplemented!("activate clone");
+      }
+      Equipment::Extinguisher => {
+        unimplemented!("extinguisher");
+      }
+      Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill | Equipment::Armor => {
+        // Shouldn't really happen, but whatever.
+        return;
+      }
+      Equipment::SuperDrill if self.actors[player].super_drill_count > 0 => {
+        // Using already
+        return;
+      }
+      Equipment::SuperDrill => {
+        self.actors[player].super_drill_count = 10;
+        self.actors[player].drilling += 300;
+        return;
+      }
+      other if CANNOT_PLACE_BOMB[self.maps.level[cursor]] => {
+        // Cannot place bomb here!
+        return;
+      }
+      _other => {
+        // Regular bombs case
+        self.maps.level[cursor] = item_map_value(item, self.actors[player].facing, player);
+        self.maps.timer[cursor] = item_initial_clock(item);
+
+        // Some special handling for those bomb types
+        match item {
+          Equipment::JumpingBomb => {
+            let mut rng = rand::thread_rng();
+            self.maps.hits[cursor] = rng.gen_range(7, 27);
+          }
+          Equipment::Biomass => {
+            self.maps.hits[cursor] = 400;
+          }
+          Equipment::Grenade => {
+            self.maps.hits[cursor] = 20;
+          }
+          _ => {}
+        }
+      }
+    }
+
+    self.players[player].inventory[item] -= 1;
+    self.players[player].stats.bombs_dropped += 1;
+    // FIXME: render items count...
+    // FIXME: reveal map square
+  }
+}
+
+fn item_map_value(item: Equipment, direction: Direction, player: usize) -> MapValue {
+  match item {
+    Equipment::SmallBomb => MapValue::SmallBomb1,
+    Equipment::BigBomb => MapValue::BigBomb1,
+    Equipment::Dynamite => MapValue::Dynamite1,
+    Equipment::AtomicBomb => MapValue::Atomic1,
+    Equipment::SmallRadio => match player {
+      0 => MapValue::SmallRadioBlue,
+      1 => MapValue::SmallRadioRed,
+      2 => MapValue::SmallRadioGreen,
+      3 => MapValue::SmallRadioYellow,
+      _ => unreachable!(),
+    },
+    Equipment::LargeRadio => match player {
+      0 => MapValue::BigRadioBlue,
+      1 => MapValue::BigRadioRed,
+      2 => MapValue::BigRadioGreen,
+      3 => MapValue::BigRadioYellow,
+      _ => unreachable!(),
+    },
+    Equipment::Grenade => match direction {
+      Direction::Left => MapValue::GrenadeFlyingLeft,
+      Direction::Right => MapValue::GrenadeFlyingRight,
+      Direction::Up => MapValue::GrenadeFlyingUp,
+      Direction::Down => MapValue::GrenadeFlyingDown,
+    },
+    Equipment::Mine => MapValue::Mine,
+    Equipment::Napalm => MapValue::Napalm1,
+    Equipment::Barrel => MapValue::Barrel,
+    Equipment::SmallCrucifix => MapValue::SmallCrucifixBomb,
+    Equipment::LargeCrucifix => MapValue::LargeCrucifixBomb,
+    Equipment::Plastic => MapValue::PlasticBomb,
+    Equipment::ExplosivePlastic => MapValue::ExplosivePlasticBomb,
+    Equipment::Digger => MapValue::DiggerBomb,
+    Equipment::MetalWall => MapValue::MetalWall,
+    Equipment::Teleport => MapValue::Teleport,
+    Equipment::Biomass => MapValue::Biomass,
+    Equipment::JumpingBomb => MapValue::JumpingBomb,
+    Equipment::SmallPickaxe
+    | Equipment::LargePickaxe
+    | Equipment::Drill
+    | Equipment::Flamethrower
+    | Equipment::Extinguisher
+    | Equipment::Armor
+    | Equipment::SuperDrill
+    | Equipment::Clone => {
+      unreachable!();
+    }
+  }
+}
+
+fn item_initial_clock(item: Equipment) -> u16 {
+  match item {
+    Equipment::Mine | Equipment::SmallRadio | Equipment::LargeRadio | Equipment::Barrel | Equipment::Teleport => 0,
+    Equipment::Napalm => 260,
+    Equipment::AtomicBomb => 280,
+    Equipment::ExplosivePlastic => 90,
+    Equipment::Dynamite => 80,
+    Equipment::JumpingBomb => {
+      let mut rng = rand::thread_rng();
+      rng.gen_range(80, 160)
+    }
+    Equipment::Biomass => {
+      let mut rng = rand::thread_rng();
+      rng.gen_range(0, 80)
+    }
+    Equipment::Grenade => 1,
+    _ => 100,
+  }
+}
+
+fn is_selectable(item: Equipment) -> bool {
+  match item {
+    Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill | Equipment::Armor => false,
+    _ => true,
   }
 }
 

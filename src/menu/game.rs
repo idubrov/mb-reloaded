@@ -13,10 +13,17 @@ use crate::Application;
 use rand::prelude::*;
 use rand::Rng;
 use sdl2::event::Event;
+use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use std::rc::Rc;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RoundEnd {
+  Round,
+  Game,
+}
 
 impl Application<'_> {
   /// Play game, starting from player selection
@@ -57,7 +64,7 @@ impl Application<'_> {
         .unwrap_or(&LevelInfo::Random);
       ctx.animate(Animation::FadeDown, 7)?;
 
-      if self.play_round(ctx, &mut players, round, level, settings)? {
+      if self.play_round(ctx, &mut players, round, level, settings)? == RoundEnd::Game {
         break;
       }
     }
@@ -71,7 +78,7 @@ impl Application<'_> {
     round: u16,
     level: &LevelInfo,
     settings: &GameSettings,
-  ) -> Result<bool, anyhow::Error> {
+  ) -> Result<RoundEnd, anyhow::Error> {
     let darkness = settings.options.darkness || players.len() == 1;
     let level = match level {
       LevelInfo::Random => {
@@ -109,12 +116,7 @@ impl Application<'_> {
 
     let mut end_round_counter = 0;
     let mut round_counter = 0;
-    loop {
-      // FIXME: check if escape is pressed
-      // FIXME: check if game is paused
-      // FIXME: check F5 -- toggle music
-      // FIXME: check F10 -- exit game
-
+    let exit_reason = 'round: loop {
       if round_counter % 18 == 0 {
         world.update_super_drill();
       }
@@ -154,47 +156,62 @@ impl Application<'_> {
           }
 
           if round_counter % 2 == 0 {
-            // FIXME: player keys
             // FIXME: check player died
           }
         }
         Ok(())
       })?;
 
-      if world.shake % 2 != 0 {
-        ctx.present_shake(world.shake)?;
-      } else {
-        ctx.present()?;
-      }
-
+      let mut refresh_info = false;
       // Handle player commands
       if round_counter % 2 == 0 {
         // FIXME: in original game, command has slight delay on facing direction
         //  However, facing seems to be only used when holding still, so doesn't really matter much.
+
+        let mut paused = false;
         for event in ctx.poll_iter() {
-          if let Event::KeyDown { scancode, .. } = event {
+          if let Event::KeyDown {
+            scancode: Some(scancode),
+            ..
+          } = event
+          {
+            match scancode {
+              Scancode::Escape => break 'round RoundEnd::Round,
+              Scancode::F10 => break 'round RoundEnd::Game,
+              // FIXME: some better scancode?
+              Scancode::Pause => {
+                paused = true;
+              }
+              Scancode::F5 => unimplemented!("toggle music"),
+              _ => {}
+            }
+
             for player in 0..world.players.len() {
-              let keys = &world.players[player].keys;
-              let mut actor = &mut world.actors[player];
-              if keys[Key::Up] == scancode {
-                actor.facing = Direction::Up;
-                actor.moving = true;
-              } else if keys[Key::Down] == scancode {
-                actor.facing = Direction::Down;
-                actor.moving = true;
-              } else if keys[Key::Left] == scancode {
-                actor.facing = Direction::Left;
-                actor.moving = true;
-              } else if keys[Key::Right] == scancode {
-                actor.facing = Direction::Right;
-                actor.moving = true;
-              } else if keys[Key::Bomb] == scancode {
-                // FIXME: temporary
-                world.shake = 10;
+              let keys = world.players[player].keys;
+              for key in Key::all_keys() {
+                if keys[key] == Some(scancode) {
+                  world.player_action(player, key);
+                  if key == Key::Bomb || key == Key::Choose {
+                    refresh_info = true;
+                  }
+                }
               }
             }
           }
         }
+        if paused {
+          ctx.wait_key_pressed();
+        }
+      }
+
+      if refresh_info {
+        ctx.with_render_context(|canvas| self.render_players_info(canvas, &world))?;
+      }
+
+      if world.shake % 2 != 0 {
+        ctx.present_shake(world.shake)?;
+      } else {
+        ctx.present()?;
       }
 
       round_counter += 1;
@@ -203,7 +220,10 @@ impl Application<'_> {
       }
 
       std::thread::sleep(std::time::Duration::from_millis(20));
-    }
+    };
+    ctx.animate(Animation::FadeDown, 7)?;
+
+    Ok(exit_reason)
   }
 
   fn render_game_screen(&self, canvas: &mut WindowCanvas, world: &World) -> Result<(), anyhow::Error> {
@@ -461,7 +481,7 @@ impl Application<'_> {
       || value.is_sand()
       || value.is_stone_like()
       || value.is_brick_like()
-      || value == MapValue::BioMass
+      || value == MapValue::Biomass
       || value == MapValue::Plastic
       || value == MapValue::ExplosivePlastic
       || value == MapValue::LightGravel
@@ -623,7 +643,7 @@ impl Application<'_> {
           let cnt = rng.gen_range(3, 13);
           let weapon = *[
             Equipment::SmallBomb,
-            Equipment::LargeBomb,
+            Equipment::BigBomb,
             Equipment::Dynamite,
             Equipment::SmallRadio,
             Equipment::LargeRadio,
@@ -819,7 +839,7 @@ impl Application<'_> {
       _ => return None,
     };
     let mut rnd = rand::thread_rng();
-    if rnd.gen_range(0, 1000) <= 10_000 {
+    if rnd.gen_range(0, 1000) <= 10 {
       Some(replacement)
     } else {
       None

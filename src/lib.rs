@@ -4,6 +4,7 @@ use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
 use crate::roster::RosterInfo;
 use crate::settings::GameSettings;
+use crate::world::equipment::Equipment;
 use crate::world::map::{LevelInfo, LevelMap};
 use crate::world::player::PlayerComponent;
 use sdl2::mixer::Music;
@@ -58,6 +59,9 @@ pub fn main() -> Result<(), anyhow::Error> {
         // PlayerEntity::new(player3, settings.keys.keys[1], u32::from(settings.options.cash)),
         // PlayerEntity::new(player4, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];
+      for item in Equipment::all_equipment() {
+        players[0].inventory[item] = 50;
+      }
       app.play_round(&mut ctx, &mut players, 0, &level, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;

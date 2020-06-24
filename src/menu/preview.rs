@@ -34,7 +34,7 @@ fn preview_pixel(value: MapValue) -> usize {
     14
   } else if value == MapValue::MetalWall {
     8
-  } else if value == MapValue::BioMass {
+  } else if value == MapValue::Biomass {
     4
   } else {
     12
