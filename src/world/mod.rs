@@ -1,3 +1,4 @@
+use crate::glyphs::Digging;
 use crate::keys::Key;
 use crate::world::actor::{ActorComponent, ActorKind};
 use crate::world::equipment::Equipment;
@@ -26,6 +27,9 @@ pub struct World<'p> {
   // First `players.len()` actors are players
   pub actors: Vec<ActorComponent>,
   pub shake: u32,
+
+  ///
+  pub update: UpdateQueue,
 }
 
 pub type EntityIndex = usize;
@@ -59,6 +63,7 @@ impl<'p> World<'p> {
       players,
       actors,
       shake: 0,
+      update: Default::default(),
     }
   }
 
@@ -166,11 +171,11 @@ impl<'p> World<'p> {
         self.actors[player].drilling += 300;
         return;
       }
-      other if CANNOT_PLACE_BOMB[self.maps.level[cursor]] => {
+      _other if CANNOT_PLACE_BOMB[self.maps.level[cursor]] => {
         // Cannot place bomb here!
         return;
       }
-      _other => {
+      item => {
         // Regular bombs case
         self.maps.level[cursor] = item_map_value(item, self.actors[player].facing, player);
         self.maps.timer[cursor] = item_initial_clock(item);
@@ -346,5 +351,54 @@ fn init_players_positions(players: &mut [ActorComponent]) {
       players[2].pos = Position::new(625, 45);
       players[3].pos = Position::new(15, 465);
     }
+  }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Update {
+  Actor(EntityIndex, Digging),
+  Map(Cursor),
+  Border(Cursor),
+}
+
+/// List of UI areas to update
+#[derive(Default)]
+pub struct UpdateQueue {
+  /// Need to re-render players info
+  pub players_info: bool,
+  pub queue: Vec<Update>,
+}
+
+impl UpdateQueue {
+  /// Need to re-render player lives
+  pub fn update_player_lives(&mut self) {
+    self.players_info = true;
+  }
+
+  /// Need to re-render player round stats (digging power and gold)
+  pub fn update_player_stats(&mut self, _player: EntityIndex) {
+    self.players_info = true;
+  }
+
+  /// Need to re-render player weapon selection and count
+  pub fn update_player_selection(&mut self, _player: EntityIndex) {
+    self.players_info = true;
+  }
+
+  /// Need to re-render player health
+  pub fn update_player_health(&mut self, _player: EntityIndex) {
+    self.players_info = true;
+  }
+
+  pub fn update_actor(&mut self, actor: EntityIndex, digging: Digging) {
+    self.queue.push(Update::Actor(actor, digging));
+  }
+
+  pub fn update_cell(&mut self, cursor: Cursor) {
+    self.queue.push(Update::Map(cursor));
+  }
+
+  pub fn update_cell_border(&mut self, cursor: Cursor) {
+    self.queue.push(Update::Border(cursor));
   }
 }

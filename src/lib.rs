@@ -62,6 +62,9 @@ pub fn main() -> Result<(), anyhow::Error> {
       for item in Equipment::all_equipment() {
         players[0].inventory[item] = 50;
       }
+      players[0].inventory[Equipment::SmallPickaxe] = 0;
+      players[0].inventory[Equipment::LargePickaxe] = 0;
+      players[0].inventory[Equipment::Drill] = 0;
       app.play_round(&mut ctx, &mut players, 0, &level, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;

@@ -8,7 +8,7 @@ use crate::world::equipment::Equipment;
 use crate::world::map::{LevelInfo, LevelMap, MapValue, DIRT_BORDER_BITMAP, MAP_COLS, MAP_ROWS, PUSHABLE_BITMAP};
 use crate::world::player::PlayerComponent;
 use crate::world::position::{Cursor, Direction};
-use crate::world::{EntityIndex, Maps, World};
+use crate::world::{EntityIndex, Maps, Update, World};
 use crate::Application;
 use rand::prelude::*;
 use rand::Rng;
@@ -121,48 +121,43 @@ impl Application<'_> {
         world.update_super_drill();
       }
 
+      self.bombs_clock(&mut world)?;
       if world.shake > 0 {
         world.shake -= 1;
       }
 
-      ctx.with_render_context(|canvas| {
-        self.bombs_clock(canvas, &mut world)?;
-        self.atomic_shake(canvas, &mut world)?;
-        if round_counter % 5 == 0 {
-          if world.is_single_player() {
-            if world.actors[0].is_dead {
-              if end_round_counter == 0 {
-                world.players[0].lives -= 1;
-                // FIXME: end round
-                if world.players[0].lives == 0 {
-                  // FIXME: end game
-                }
-                self.render_lives(canvas, world.players[0].lives)?;
-              } else {
-                end_round_counter += 2;
+      if round_counter % 5 == 0 {
+        if world.is_single_player() {
+          if world.actors[0].is_dead {
+            if end_round_counter == 0 {
+              world.players[0].lives -= 1;
+              // FIXME: end round
+              if world.players[0].lives == 0 {
+                // FIXME: end game
               }
+              world.update.update_player_lives();
+            } else {
+              end_round_counter += 2;
             }
-          } else if world.alive_players() < 2 {
-            end_round_counter += 3;
+          }
+        } else if world.alive_players() < 2 {
+          end_round_counter += 3;
+        }
+      }
+
+      for monster in 0..world.players.len() {
+        if !world.actors[monster].is_dead {
+          self.animate_actor(monster, &mut world)?;
+          if world.actors[monster].super_drill_count > 0 {
+            self.animate_actor(monster, &mut world)?;
           }
         }
 
-        for monster in 0..world.players.len() {
-          if !world.actors[monster].is_dead {
-            self.animate_actor(canvas, monster, &mut world)?;
-            if world.actors[monster].super_drill_count > 0 {
-              self.animate_actor(canvas, monster, &mut world)?;
-            }
-          }
-
-          if round_counter % 2 == 0 {
-            // FIXME: check player died
-          }
+        if round_counter % 2 == 0 {
+          // FIXME: check player died
         }
-        Ok(())
-      })?;
+      }
 
-      let mut refresh_info = false;
       // Handle player commands
       if round_counter % 2 == 0 {
         // FIXME: in original game, command has slight delay on facing direction
@@ -191,9 +186,6 @@ impl Application<'_> {
               for key in Key::all_keys() {
                 if keys[key] == Some(scancode) {
                   world.player_action(player, key);
-                  if key == Key::Bomb || key == Key::Choose {
-                    refresh_info = true;
-                  }
                 }
               }
             }
@@ -204,9 +196,29 @@ impl Application<'_> {
         }
       }
 
-      if refresh_info {
-        ctx.with_render_context(|canvas| self.render_players_info(canvas, &world))?;
-      }
+      // Apply all rendering updates
+      ctx.with_render_context(|canvas| {
+        if world.update.players_info {
+          self.render_players_info(canvas, &world)?;
+        }
+        // Take all the updates
+        for update in &world.update.queue {
+          match *update {
+            Update::Actor(actor, digging) => {
+              let actor = &world.actors[actor];
+              self.render_actor(canvas, actor, digging)?;
+            }
+            Update::Map(cursor) => {
+              self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+            }
+            Update::Border(cursor) => {
+              self.render_dirt_border(canvas, cursor, &world.maps.level)?;
+            }
+          }
+        }
+        world.update.queue.clear();
+        Ok(())
+      })?;
 
       if world.shake % 2 != 0 {
         ctx.present_shake(world.shake)?;
@@ -236,7 +248,7 @@ impl Application<'_> {
     } else {
       // Render actors
       for actor in &world.actors {
-        self.render_actor(canvas, actor)?;
+        self.render_actor(canvas, actor, Digging::Hands)?;
       }
     }
 
@@ -350,8 +362,8 @@ impl Application<'_> {
         &player.inventory[player.selection].to_string(),
       )?;
 
-      //canvas.set_draw_color(Color::BLACK);
-      //canvas.fill_rect(Rect::new(pos_x + 50, 11, 40, 8)).map_err(SdlError)?;
+      canvas.set_draw_color(Color::BLACK);
+      canvas.fill_rect(Rect::new(pos_x + 50, 11, 40, 8)).map_err(SdlError)?;
       self.font.render(
         canvas,
         pos_x + 50,
@@ -363,8 +375,8 @@ impl Application<'_> {
         .font
         .render(canvas, pos_x + 36, 1, palette[1], &player.stats.name)?;
 
-      //canvas.set_draw_color(Color::BLACK);
-      //canvas.fill_rect(Rect::new(pos_x + 50, 21, 40, 8)).map_err(SdlError)?;
+      canvas.set_draw_color(Color::BLACK);
+      canvas.fill_rect(Rect::new(pos_x + 50, 21, 40, 8)).map_err(SdlError)?;
       let total_cash = player.cash + world.actors[idx].accumulated_cash;
       self
         .font
@@ -378,24 +390,33 @@ impl Application<'_> {
     unimplemented!()
   }
 
-  fn render_actor(&self, canvas: &mut WindowCanvas, actor: &ActorComponent) -> Result<(), anyhow::Error> {
-    // FIXME: handle moving directions, too
+  fn render_actor(
+    &self,
+    canvas: &mut WindowCanvas,
+    actor: &ActorComponent,
+    digging: Digging,
+  ) -> Result<(), anyhow::Error> {
+    let phase = match actor.animation / 5 {
+      _ if !actor.moving => AnimationPhase::Phase1,
+      0 => AnimationPhase::Phase1,
+      1 => AnimationPhase::Phase2,
+      2 => AnimationPhase::Phase3,
+      3 => AnimationPhase::Phase4,
+      4 => AnimationPhase::Phase3,
+      _ => AnimationPhase::Phase2,
+    };
+
     let pos_x = i32::from(actor.pos.x) - 5;
     let pos_y = i32::from(actor.pos.y) - 5;
-    let glyph = Glyph::Monster(actor.kind, actor.facing, Digging::Hands, AnimationPhase::Phase1);
+    let glyph = Glyph::Monster(actor.kind, actor.facing, digging, phase);
     self.glyphs.render(canvas, pos_x, pos_y, glyph)?;
     Ok(())
   }
 
-  fn animate_actor(
-    &self,
-    canvas: &mut WindowCanvas,
-    entity: EntityIndex,
-    world: &mut World,
-  ) -> Result<(), anyhow::Error> {
+  fn animate_actor(&self, entity: EntityIndex, world: &mut World) -> Result<(), anyhow::Error> {
     let actor = &mut world.actors[entity];
     if !actor.moving {
-      self.render_actor(canvas, actor)?;
+      world.update.update_actor(entity, Digging::Hands);
       return Ok(());
     };
 
@@ -430,17 +451,17 @@ impl Application<'_> {
         Direction::Up | Direction::Down if delta_orthogonal > 5 => cursor.to(Direction::Right),
         Direction::Up | Direction::Down => cursor.to(Direction::Left),
       };
-      self.reveal_map_square(canvas, cur, &mut world.maps)?;
+      world.update.update_cell(cur);
     }
 
     // We are centered in the direction we are going -- hit the map!
     if delta_dir == 5 {
-      self.interact_map(canvas, entity, cursor.to(direction), world)?;
+      self.interact_map(entity, cursor.to(direction), world)?;
     }
 
     // Finishing moving from adjacent square -- render that square
     if finishing_move {
-      self.reveal_map_square(canvas, cursor.to(direction.reverse()), &mut world.maps)?;
+      world.update.update_cell(cursor.to(direction.reverse()));
     }
 
     // Check if we need to show animation with pick axe or without
@@ -452,19 +473,14 @@ impl Application<'_> {
         || (map_value >= MapValue::Brick && map_value <= MapValue::BrickHeavyCracked));
     let digging = if is_hard { Digging::Pickaxe } else { Digging::Hands };
 
-    self.animate_digging(canvas, &mut world.actors[entity], digging)?;
+    world.update.update_actor(entity, digging);
+    self.animate_digging(&mut world.actors[entity], digging)?;
     Ok(())
   }
 
   /// Interact with the map cell (dig it with a pickaxe, pick up gold, press buttons).
   #[allow(clippy::cognitive_complexity)]
-  fn interact_map(
-    &self,
-    canvas: &mut WindowCanvas,
-    entity: EntityIndex,
-    cursor: Cursor,
-    world: &mut World,
-  ) -> Result<(), anyhow::Error> {
+  fn interact_map(&self, entity: EntityIndex, cursor: Cursor, world: &mut World) -> Result<(), anyhow::Error> {
     let value = world.maps.level[cursor];
     if value.is_passable() {
       if let Some(player) = world.players.get_mut(entity) {
@@ -502,14 +518,14 @@ impl Application<'_> {
             } else {
               world.maps.level[cursor] = MapValue::StoneHeavyCracked;
             }
-            self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+            world.update.update_cell(cursor);
           } else if world.maps.hits[cursor] < 1000 {
             if value.is_stone_corner() {
               world.maps.level[cursor] = MapValue::HeavyGravel;
             } else {
               world.maps.level[cursor] = MapValue::StoneLightCracked;
             }
-            self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+            world.update.update_cell(cursor);
           }
         } else if value.is_brick_like() {
           if world.maps.hits[cursor] <= 2000 {
@@ -517,14 +533,14 @@ impl Application<'_> {
           } else if world.maps.hits[cursor] <= 4000 {
             world.maps.level[cursor] = MapValue::BrickLightCracked;
           }
-          self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+          world.update.update_cell(cursor);
           return Ok(());
         }
       } else {
         world.maps.hits[cursor] = 0;
         world.maps.level[cursor] = MapValue::Passage;
-        self.reveal_map_square(canvas, cursor, &mut world.maps)?;
-        self.render_dirt_border(canvas, cursor, &world.maps.level)?;
+        world.update.update_cell(cursor);
+        world.update.update_cell_border(cursor);
       }
     } else if value == MapValue::Diamond
       || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown)
@@ -568,12 +584,11 @@ impl Application<'_> {
         }
       }
 
-      // FIXME: optimized re-rendering?
-      self.render_players_info(canvas, world)?;
-
       world.maps.hits[cursor] = 0;
       world.maps.level[cursor] = MapValue::Passage;
-      self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+
+      world.update.update_player_stats(entity);
+      world.update.update_cell(cursor);
     } else if value == MapValue::Mine {
       // Activate the mine
       world.maps.timer[cursor] = 1;
@@ -600,8 +615,9 @@ impl Application<'_> {
 
           // FIXME: re-render blood
           reapply_blood(cursor, world);
-          self.reveal_map_square(canvas, cursor, &mut world.maps)?;
-          self.reveal_map_square(canvas, target, &mut world.maps)?;
+
+          world.update.update_cell(cursor);
+          world.update.update_cell(target);
         }
       }
     } else if value == MapValue::WeaponsCrate {
@@ -665,19 +681,19 @@ impl Application<'_> {
 
       world.maps.hits[cursor] = 0;
       world.maps.level[cursor] = MapValue::Passage;
-      self.reveal_map_square(canvas, cursor, &mut world.maps)?;
 
-      // FIXME: more optimal re-rendering?
-      self.render_players_info(canvas, world)?;
+      world.update.update_player_selection(entity);
+      world.update.update_cell(cursor);
     } else if value == MapValue::LifeItem {
       if world.actors[entity].kind == ActorKind::Player1 {
         world.players[0].lives += 1;
-        self.render_players_info(canvas, world)?;
+        world.update.update_player_lives();
       }
 
       world.maps.hits[cursor] = 0;
       world.maps.level[cursor] = MapValue::Passage;
-      self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+
+      world.update.update_cell(cursor);
     } else if value == MapValue::ButtonOff {
       if world.maps.timer[cursor] <= 1 {
         open_doors(world);
@@ -710,17 +726,18 @@ impl Application<'_> {
           if exit == 0 {
             // Found exit point
             let actor = &mut world.actors[entity];
-            self.reveal_map_square(canvas, actor.pos.cursor(), &mut world.maps)?;
+            world.update.update_cell(actor.pos.cursor());
+
             // Move to the exit point
             actor.pos = cur.into();
-            self.reveal_map_square(canvas, actor.pos.cursor(), &mut world.maps)?;
+            world.update.update_cell(actor.pos.cursor());
             break;
           }
           exit -= 1;
         }
       }
     } else if value == MapValue::Exit {
-      // FIXME: exiting level
+      unimplemented!("level exit");
     } else if value == MapValue::Medikit {
       // FIXME: play sound picaxe.voc, freq = 11000
 
@@ -729,9 +746,9 @@ impl Application<'_> {
         world.actors[entity].health = world.actors[entity].max_health;
       }
 
-      self.render_players_info(canvas, world)?;
       world.maps.level[cursor] = MapValue::Passage;
-      self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+      world.update.update_player_health(entity);
+      world.update.update_cell(cursor);
     }
     Ok(())
   }
@@ -741,36 +758,11 @@ impl Application<'_> {
     unimplemented!("reveal view")
   }
 
-  fn animate_digging(
-    &self,
-    canvas: &mut WindowCanvas,
-    monster: &mut ActorComponent,
-    digging: Digging,
-  ) -> Result<(), anyhow::Error> {
+  fn animate_digging(&self, monster: &mut ActorComponent, digging: Digging) -> Result<(), anyhow::Error> {
     if !monster.moving {
       return Ok(());
     }
-
-    if monster.animation < 30 {
-      let phase = match monster.animation / 5 {
-        0 => AnimationPhase::Phase1,
-        1 => AnimationPhase::Phase2,
-        2 => AnimationPhase::Phase3,
-        3 => AnimationPhase::Phase4,
-        4 => AnimationPhase::Phase3,
-        5 => AnimationPhase::Phase2,
-        _ => unreachable!(),
-      };
-      let glyph = Glyph::Monster(monster.kind, monster.facing, digging, phase);
-      self.glyphs.render(
-        canvas,
-        i32::from(monster.pos.x) - 5,
-        i32::from(monster.pos.y) - 5,
-        glyph,
-      )?;
-    } else {
-      monster.animation = 0;
-    }
+    monster.animation %= 30;
 
     if digging == Digging::Pickaxe && monster.animation == 16 {
       // FIXME: frequency adjustment
@@ -792,7 +784,7 @@ impl Application<'_> {
     Ok(())
   }
 
-  fn bombs_clock(&self, canvas: &mut WindowCanvas, world: &mut World) -> Result<(), anyhow::Error> {
+  fn bombs_clock(&self, world: &mut World) -> Result<(), anyhow::Error> {
     for cursor in Cursor::all() {
       match world.maps.timer[cursor] {
         0 => {}
@@ -800,9 +792,9 @@ impl Application<'_> {
           world.maps.timer[cursor] = 0;
           if let Some(extinguished) = self.check_fuse_went_out(world.maps.level[cursor]) {
             world.maps.level[cursor] = extinguished;
-            self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+            world.update.update_cell(cursor);
           } else {
-            self.explode_entity(canvas, cursor, world)?;
+            self.explode_entity(cursor, world)?;
           }
         }
         clock => {
@@ -822,7 +814,7 @@ impl Application<'_> {
             _ => continue,
           };
           world.maps.level[cursor] = replacement;
-          self.reveal_map_square(canvas, cursor, &mut world.maps)?;
+          world.update.update_cell(cursor);
         }
       }
     }
@@ -846,18 +838,8 @@ impl Application<'_> {
     }
   }
 
-  fn explode_entity(
-    &self,
-    _canvas: &mut WindowCanvas,
-    _cursor: Cursor,
-    _world: &mut World,
-  ) -> Result<(), anyhow::Error> {
+  fn explode_entity(&self, _cursor: Cursor, _world: &mut World) -> Result<(), anyhow::Error> {
     unimplemented!()
-  }
-
-  fn atomic_shake(&self, _canvas: &mut WindowCanvas, _world: &mut World) -> Result<(), anyhow::Error> {
-    // FIXME: implement
-    Ok(())
   }
 }
 
