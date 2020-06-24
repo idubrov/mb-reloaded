@@ -121,7 +121,7 @@ impl Application<'_> {
         world.update_super_drill();
       }
 
-      self.bombs_clock(&mut world)?;
+      self.bombs_clock(&mut world);
       if world.shake > 0 {
         world.shake -= 1;
       }
@@ -145,16 +145,13 @@ impl Application<'_> {
         }
       }
 
+      // Animate players
       for monster in 0..world.players.len() {
         if !world.actors[monster].is_dead {
           self.animate_actor(monster, &mut world)?;
           if world.actors[monster].super_drill_count > 0 {
             self.animate_actor(monster, &mut world)?;
           }
-        }
-
-        if round_counter % 2 == 0 {
-          // FIXME: check player died
         }
       }
 
@@ -196,6 +193,16 @@ impl Application<'_> {
         }
       }
 
+      if round_counter % 2 == 0 {
+        // FIXME: check player died
+      }
+
+      if round_counter % 5 == 0 {
+        world.detect_players();
+      }
+      // FIXME: animate_monsters
+      // FIXME: check remaining gold
+
       // Apply all rendering updates
       ctx.with_render_context(|canvas| {
         if world.update.players_info {
@@ -216,6 +223,8 @@ impl Application<'_> {
             }
           }
         }
+
+        // FIXME: update round time
         world.update.queue.clear();
         Ok(())
       })?;
@@ -784,20 +793,25 @@ impl Application<'_> {
     Ok(())
   }
 
-  fn bombs_clock(&self, world: &mut World) -> Result<(), anyhow::Error> {
+  /// Run bombs timer
+  fn bombs_clock(&self, world: &mut World) {
     for cursor in Cursor::all() {
       match world.maps.timer[cursor] {
-        0 => {}
+        0 => {
+          // Not an active entity -- nothing to do!
+        }
         1 => {
           world.maps.timer[cursor] = 0;
+          // Some bombs might extinguish themselves
           if let Some(extinguished) = self.check_fuse_went_out(world.maps.level[cursor]) {
             world.maps.level[cursor] = extinguished;
             world.update.update_cell(cursor);
           } else {
-            self.explode_entity(cursor, world)?;
+            self.explode_entity(cursor, world);
           }
         }
         clock => {
+          // Countdown and update animation if needed
           world.maps.timer[cursor] = clock - 1;
           let replacement = match world.maps.level[cursor] {
             MapValue::SmallBomb1 if clock <= 60 => MapValue::SmallBomb2,
@@ -818,7 +832,6 @@ impl Application<'_> {
         }
       }
     }
-    Ok(())
   }
 
   /// Make a dice roll to check if fuse went out
@@ -838,7 +851,7 @@ impl Application<'_> {
     }
   }
 
-  fn explode_entity(&self, _cursor: Cursor, _world: &mut World) -> Result<(), anyhow::Error> {
+  fn explode_entity(&self, _cursor: Cursor, _world: &mut World) {
     unimplemented!()
   }
 }

@@ -61,6 +61,8 @@ pub struct ActorComponent {
   pub drilling: u16,
   pub animation: u8,
   pub is_dead: bool,
+  /// If monster is active
+  pub is_active: bool,
   pub owner: Option<EntityIndex>,
   /// Cash accumulated in the current map; will be lost on death.
   pub accumulated_cash: u32,
@@ -80,6 +82,7 @@ impl Default for ActorComponent {
       drilling: 0,
       animation: 0,
       is_dead: false,
+      is_active: false,
       owner: None,
       accumulated_cash: 0,
       super_drill_count: 0,

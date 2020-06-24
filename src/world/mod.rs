@@ -202,6 +202,38 @@ impl<'p> World<'p> {
     // FIXME: render items count...
     // FIXME: reveal map square
   }
+
+  pub fn detect_players(&mut self) {
+    // FIXME: detect players
+    // Visibility rules:
+
+    let (players, monsters) = self.actors.split_at_mut(self.players.len());
+    for monster in monsters {
+      if monster.is_active {
+        // Monster is ative already
+        continue;
+      }
+      for player in players.iter() {
+        if monster.is_active {
+          // Monster is active already
+          continue;
+        }
+
+        // 1. Closer than 20 in any direction (coordinate)
+        // 2. On the same line & line of sight is not obstructed
+        // 3. In forward field of view (90 degree fov) up to 7 cells distance
+        monster.is_active = in_proximity(monster.pos, player.pos)
+          || in_direct_sight(monster.pos.cursor(), player.pos.cursor(), &self.maps.level)
+          || in_fov_sight(monster.pos.cursor(), player.pos.cursor(), monster.facing);
+        if monster.is_active {
+          // FIXME: play KARJAISU.VOC
+          //  10300 frequency for alien
+          //  11000 frequency for others
+          eprintln!("monster activated!");
+        }
+      }
+    }
+  }
 }
 
 fn item_map_value(item: Equipment, direction: Direction, player: usize) -> MapValue {
@@ -401,4 +433,45 @@ impl UpdateQueue {
   pub fn update_cell_border(&mut self, cursor: Cursor) {
     self.queue.push(Update::Border(cursor));
   }
+}
+
+/// Check if two coordinates are in proximity to each other (less than 20 pixels in both direction)
+fn in_proximity(first: Position, second: Position) -> bool {
+  first.x < second.x + 20 && second.x < first.x + 20 && first.y < second.y + 20 && second.y < first.y + 20
+}
+
+/// Check if there is a direct line of sight between two cursor positions
+fn in_direct_sight(first: Cursor, second: Cursor, level: &LevelMap) -> bool {
+  if first.row == second.row {
+    // Same row
+    let mut cols = if first.col < second.col {
+      first.col..=second.col
+    } else {
+      second.col..=first.col
+    };
+    cols.all(|col| level[first.row][col].is_passable())
+  } else if first.col == second.col {
+    let mut rows = if first.row < second.row {
+      first.row..=second.row
+    } else {
+      second.row..=first.row
+    };
+    rows.all(|row| level[row][first.col].is_passable())
+  } else {
+    false
+  }
+}
+
+/// Check if `first` looking in the `facing` direction will have `second` in its 7-cell field-of-view.
+fn in_fov_sight(first: Cursor, second: Cursor, facing: Direction) -> bool {
+  // (high, low): low and high coordinates in the direction of the view
+  // (ortho1, ortho2): coordinates in the orthogonal dimension
+  let (high, low, ortho1, ortho2) = match facing {
+    Direction::Left => (first.col, second.col, second.row, first.row),
+    Direction::Right => (second.col, first.col, second.row, first.row),
+    Direction::Up => (first.row, second.row, second.col, first.col),
+    Direction::Down => (second.row, first.row, second.col, first.col),
+  };
+
+  high >= low && high <= low + 7 && ortho2 + low < ortho1 + high && ortho1 + low < ortho2 + high
 }

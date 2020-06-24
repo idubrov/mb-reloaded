@@ -38,7 +38,12 @@ pub fn main() -> Result<(), anyhow::Error> {
     let app = Application::init(&ctx)?;
     // To skip menus during development
     if std::env::var("DEV").is_ok() {
-      let data = std::fs::read("../minebomb/AAA.MNE")?;
+      // let data = std::fs::read("../minebomb/KARJAISU.VOC")?;
+      // let audio = crate::audio::from_voc_bytes(data, Some(10300))?;
+      // sdl2::mixer::allocate_channels(1);
+      // sdl2::mixer::Channel(0).play(&audio, 10);
+
+      let data = std::fs::read("../minebomb/BBB.MNE")?;
       let map = LevelMap::from_file_map(data)?;
       let level = LevelInfo::File {
         name: "CARAMBA".into(),
