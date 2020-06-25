@@ -3,15 +3,12 @@ use crate::error::ApplicationError::SdlError;
 use crate::glyphs::{AnimationPhase, Digging, Glyph};
 use crate::keys::Key;
 use crate::settings::GameSettings;
-use crate::world::actor::{ActorComponent, ActorKind};
-use crate::world::equipment::Equipment;
-use crate::world::map::{LevelInfo, LevelMap, MapValue, DIRT_BORDER_BITMAP, MAP_COLS, MAP_ROWS, PUSHABLE_BITMAP};
+use crate::world::actor::ActorComponent;
+use crate::world::map::{LevelInfo, LevelMap, MapValue, DIRT_BORDER_BITMAP, MAP_COLS, MAP_ROWS};
 use crate::world::player::PlayerComponent;
 use crate::world::position::{Cursor, Direction};
-use crate::world::{EntityIndex, Maps, Update, World};
+use crate::world::{Maps, Update, World};
 use crate::Application;
-use rand::prelude::*;
-use rand::Rng;
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -114,49 +111,11 @@ impl Application<'_> {
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
 
-    let mut end_round_counter = 0;
-    let mut round_counter = 0;
     let exit_reason = 'round: loop {
-      if round_counter % 18 == 0 {
-        world.update_super_drill();
-      }
-
-      self.bombs_clock(&mut world);
-      if world.shake > 0 {
-        world.shake -= 1;
-      }
-
-      if round_counter % 5 == 0 {
-        if world.is_single_player() {
-          if world.actors[0].is_dead {
-            if end_round_counter == 0 {
-              world.players[0].lives -= 1;
-              // FIXME: end round
-              if world.players[0].lives == 0 {
-                // FIXME: end game
-              }
-              world.update.update_player_lives();
-            } else {
-              end_round_counter += 2;
-            }
-          }
-        } else if world.alive_players() < 2 {
-          end_round_counter += 3;
-        }
-      }
-
-      // Animate players
-      for monster in 0..world.players.len() {
-        if !world.actors[monster].is_dead {
-          self.animate_actor(monster, &mut world)?;
-          if world.actors[monster].super_drill_count > 0 {
-            self.animate_actor(monster, &mut world)?;
-          }
-        }
-      }
+      world.tick();
 
       // Handle player commands
-      if round_counter % 2 == 0 {
+      if world.round_counter % 2 == 0 {
         // FIXME: in original game, command has slight delay on facing direction
         //  However, facing seems to be only used when holding still, so doesn't really matter much.
 
@@ -193,16 +152,6 @@ impl Application<'_> {
         }
       }
 
-      if round_counter % 2 == 0 {
-        // FIXME: check player died
-      }
-
-      if round_counter % 5 == 0 {
-        world.detect_players();
-      }
-      // FIXME: animate_monsters
-      // FIXME: check remaining gold
-
       // Apply all rendering updates
       ctx.with_render_context(|canvas| {
         if world.update.players_info {
@@ -229,17 +178,19 @@ impl Application<'_> {
         Ok(())
       })?;
 
+      if world.round_counter % 20 == 0 {
+        // FIXME: update remaining time indicator
+      }
+
+      if world.is_end_of_round() {
+        break RoundEnd::Round;
+      }
+
       if world.shake % 2 != 0 {
         ctx.present_shake(world.shake)?;
       } else {
         ctx.present()?;
       }
-
-      round_counter += 1;
-      if round_counter % 20 == 0 {
-        // FIXME: update remaining time indicator
-      }
-
       std::thread::sleep(std::time::Duration::from_millis(20));
     };
     ctx.animate(Animation::FadeDown, 7)?;
@@ -422,367 +373,6 @@ impl Application<'_> {
     Ok(())
   }
 
-  fn animate_actor(&self, entity: EntityIndex, world: &mut World) -> Result<(), anyhow::Error> {
-    let actor = &mut world.actors[entity];
-    if !actor.moving {
-      world.update.update_actor(entity, Digging::Hands);
-      return Ok(());
-    };
-
-    let delta_x = actor.pos.x % 10;
-    let delta_y = actor.pos.y % 10;
-    let cursor = actor.pos.cursor();
-    let direction = actor.facing;
-
-    let (delta_dir, delta_orthogonal, finishing_move, can_move) = match direction {
-      Direction::Left => (delta_x, delta_y, delta_x > 5, actor.pos.x > 5),
-      Direction::Right => (delta_x, delta_y, delta_x < 5, actor.pos.x < 635),
-      Direction::Up => (delta_y, delta_x, delta_y > 5, actor.pos.y > 35),
-      Direction::Down => (delta_y, delta_x, delta_y < 5, actor.pos.y < 475),
-    };
-
-    // Vertically centered enough to be moving in the current direction
-    let is_moving = can_move && delta_orthogonal > 3 && delta_orthogonal < 6;
-    let map_value = world.maps.level[cursor.to(direction)];
-    // Either finishing move into the cell or cell to the left is passable
-    if is_moving && (finishing_move || map_value.is_passable()) {
-      actor.pos.step(direction);
-    }
-
-    if delta_orthogonal != 5 {
-      // Center our position in orthogonal direction
-      actor.pos.center_orthogonal(direction);
-
-      // Need to redraw cell orthogonal to the moving direction if we are re-centering.
-      let cur = match direction {
-        Direction::Left | Direction::Right if delta_orthogonal > 5 => cursor.to(Direction::Down),
-        Direction::Left | Direction::Right => cursor.to(Direction::Up),
-        Direction::Up | Direction::Down if delta_orthogonal > 5 => cursor.to(Direction::Right),
-        Direction::Up | Direction::Down => cursor.to(Direction::Left),
-      };
-      world.update.update_cell(cur);
-    }
-
-    // We are centered in the direction we are going -- hit the map!
-    if delta_dir == 5 {
-      self.interact_map(entity, cursor.to(direction), world)?;
-    }
-
-    // Finishing moving from adjacent square -- render that square
-    if finishing_move {
-      world.update.update_cell(cursor.to(direction.reverse()));
-    }
-
-    // Check if we need to show animation with pick axe or without
-    let is_hard = delta_dir == 5
-      && ((map_value >= MapValue::StoneTopLeft && map_value <= MapValue::StoneBottomRight)
-        || map_value == MapValue::StoneBottomLeft
-        || (map_value >= MapValue::Stone1 && map_value <= MapValue::Stone4)
-        || (map_value >= MapValue::StoneLightCracked && map_value <= MapValue::StoneHeavyCracked)
-        || (map_value >= MapValue::Brick && map_value <= MapValue::BrickHeavyCracked));
-    let digging = if is_hard { Digging::Pickaxe } else { Digging::Hands };
-
-    world.update.update_actor(entity, digging);
-    self.animate_digging(&mut world.actors[entity], digging)?;
-    Ok(())
-  }
-
-  /// Interact with the map cell (dig it with a pickaxe, pick up gold, press buttons).
-  #[allow(clippy::cognitive_complexity)]
-  fn interact_map(&self, entity: EntityIndex, cursor: Cursor, world: &mut World) -> Result<(), anyhow::Error> {
-    let value = world.maps.level[cursor];
-    if value.is_passable() {
-      if let Some(player) = world.players.get_mut(entity) {
-        player.stats.meters_ran += 1;
-        if world.maps.darkness {
-          self.reveal_view(world)?;
-        }
-      }
-    }
-
-    if value == MapValue::Passage {
-      // FIXME: temporary
-    } else if value == MapValue::MetalWall
-      || value.is_sand()
-      || value.is_stone_like()
-      || value.is_brick_like()
-      || value == MapValue::Biomass
-      || value == MapValue::Plastic
-      || value == MapValue::ExplosivePlastic
-      || value == MapValue::LightGravel
-      || value == MapValue::HeavyGravel
-    {
-      let actor = &world.actors[entity];
-      // Diggable squares
-      // FIXME: use mapvalueset
-
-      if world.maps.hits[cursor] == 30_000 {
-        // 30_000 is a metal wall
-      } else if world.maps.hits[cursor] > 1 {
-        world.maps.hits[cursor] -= i32::from(actor.drilling);
-        if value.is_stone_like() {
-          if world.maps.hits[cursor] < 500 {
-            if value.is_stone_corner() {
-              world.maps.level[cursor] = MapValue::LightGravel;
-            } else {
-              world.maps.level[cursor] = MapValue::StoneHeavyCracked;
-            }
-            world.update.update_cell(cursor);
-          } else if world.maps.hits[cursor] < 1000 {
-            if value.is_stone_corner() {
-              world.maps.level[cursor] = MapValue::HeavyGravel;
-            } else {
-              world.maps.level[cursor] = MapValue::StoneLightCracked;
-            }
-            world.update.update_cell(cursor);
-          }
-        } else if value.is_brick_like() {
-          if world.maps.hits[cursor] <= 2000 {
-            world.maps.level[cursor] = MapValue::BrickHeavyCracked;
-          } else if world.maps.hits[cursor] <= 4000 {
-            world.maps.level[cursor] = MapValue::BrickLightCracked;
-          }
-          world.update.update_cell(cursor);
-          return Ok(());
-        }
-      } else {
-        world.maps.hits[cursor] = 0;
-        world.maps.level[cursor] = MapValue::Passage;
-        world.update.update_cell(cursor);
-        world.update.update_cell_border(cursor);
-      }
-    } else if value == MapValue::Diamond
-      || (value >= MapValue::GoldShield && value <= MapValue::GoldCrown)
-      || (value >= MapValue::SmallPickaxe && value <= MapValue::Drill)
-    {
-      let drill_value = match value {
-        MapValue::SmallPickaxe => 1,
-        MapValue::LargePickaxe => 3,
-        MapValue::Drill => 5,
-        _ => 0,
-      };
-      let gold_value = match value {
-        MapValue::GoldShield => 15,
-        MapValue::GoldEgg => 25,
-        MapValue::GoldPileCoins => 15,
-        MapValue::GoldBracelet => 10,
-        MapValue::GoldBar => 30,
-        MapValue::GoldCross => 35,
-        MapValue::GoldScepter => 50,
-        MapValue::GoldRubin => 65,
-        MapValue::GoldCrown => 100,
-        MapValue::Diamond => 1000,
-        _ => 0,
-      };
-
-      let actor = &world.actors[entity];
-      if let Some(player) = actor.owner {
-        world.actors[player].drilling += drill_value;
-        world.actors[player].accumulated_cash += gold_value;
-      }
-
-      world.actors[entity].drilling += drill_value;
-      world.actors[entity].accumulated_cash = gold_value;
-
-      if value >= MapValue::SmallPickaxe && value <= MapValue::Drill {
-        // FIXME: Play picaxe.voc, freq: 11000
-      } else {
-        // FIXME: play kili.voc, freq: 10000, 12599 or 14983
-        if let Some(player) = world.player_mut(entity) {
-          player.stats.treasures_collected += 1;
-        }
-      }
-
-      world.maps.hits[cursor] = 0;
-      world.maps.level[cursor] = MapValue::Passage;
-
-      world.update.update_player_stats(entity);
-      world.update.update_cell(cursor);
-    } else if value == MapValue::Mine {
-      // Activate the mine
-      world.maps.timer[cursor] = 1;
-    } else if PUSHABLE_BITMAP[value] {
-      let actor = &world.actors[entity];
-      // Go to the target position
-      let target = cursor.to(actor.facing);
-      if world.maps.hits[cursor] == 30_000 {
-        // FIXME: wall shouldn't be pushable anyways?
-      } else if world.maps.hits[cursor] > 1 {
-        // Still need to push a little
-        world.maps.hits[cursor] -= i32::from(actor.drilling);
-      } else if world.maps.level[target].is_passable() {
-        // Check if no actors are blocking the path
-        if world.actors.iter().all(|p| p.is_dead || p.pos.cursor() != target) {
-          // Push to `target` location
-          world.maps.level[target] = world.maps.level[cursor];
-          world.maps.timer[target] = world.maps.timer[cursor];
-          world.maps.hits[target] = 24;
-
-          // Clear old position
-          world.maps.level[cursor] = MapValue::Passage;
-          world.maps.timer[cursor] = 0;
-
-          // FIXME: re-render blood
-          reapply_blood(cursor, world);
-
-          world.update.update_cell(cursor);
-          world.update.update_cell(target);
-        }
-      }
-    } else if value == MapValue::WeaponsCrate {
-      // FIXME: play sound sample picaxe, freq = 11000, at column
-      let mut rng = rand::thread_rng();
-      match rng.gen_range(0, 5) {
-        0 => {
-          let cnt = rng.gen_range(1, 3);
-          let weapon = *[
-            Equipment::AtomicBomb,
-            Equipment::Grenade,
-            Equipment::Flamethrower,
-            Equipment::Clone,
-          ]
-          .choose(&mut rng)
-          .unwrap();
-          if let Some(player) = world.player_mut(entity) {
-            player.inventory[weapon] += cnt;
-          }
-        }
-        1 => {
-          let cnt = rng.gen_range(1, 6);
-          let weapon = *[
-            Equipment::Napalm,
-            Equipment::LargeCrucifix,
-            Equipment::Teleport,
-            Equipment::Biomass,
-            Equipment::Extinguisher,
-            Equipment::JumpingBomb,
-            Equipment::SuperDrill,
-          ]
-          .choose(&mut rng)
-          .unwrap();
-          if let Some(player) = world.player_mut(entity) {
-            player.inventory[weapon] += cnt;
-          }
-        }
-        _ => {
-          let cnt = rng.gen_range(3, 13);
-          let weapon = *[
-            Equipment::SmallBomb,
-            Equipment::BigBomb,
-            Equipment::Dynamite,
-            Equipment::SmallRadio,
-            Equipment::LargeRadio,
-            Equipment::Mine,
-            Equipment::Barrel,
-            Equipment::SmallCrucifix,
-            Equipment::Plastic,
-            Equipment::ExplosivePlastic,
-            Equipment::Digger,
-            Equipment::MetalWall,
-          ]
-          .choose(&mut rng)
-          .unwrap();
-          if let Some(player) = world.player_mut(entity) {
-            player.inventory[weapon] += cnt;
-          }
-        }
-      }
-
-      world.maps.hits[cursor] = 0;
-      world.maps.level[cursor] = MapValue::Passage;
-
-      world.update.update_player_selection(entity);
-      world.update.update_cell(cursor);
-    } else if value == MapValue::LifeItem {
-      if world.actors[entity].kind == ActorKind::Player1 {
-        world.players[0].lives += 1;
-        world.update.update_player_lives();
-      }
-
-      world.maps.hits[cursor] = 0;
-      world.maps.level[cursor] = MapValue::Passage;
-
-      world.update.update_cell(cursor);
-    } else if value == MapValue::ButtonOff {
-      if world.maps.timer[cursor] <= 1 {
-        open_doors(world);
-      }
-    } else if value == MapValue::ButtonOn {
-      if world.maps.timer[cursor] <= 1 {
-        close_doors(world);
-      }
-    } else if value == MapValue::Teleport {
-      let mut entrance_idx = 0;
-      let mut teleport_count = 0;
-      for cur in Cursor::all() {
-        if world.maps.level[cur] == MapValue::Teleport {
-          if cursor == cur {
-            entrance_idx = teleport_count;
-          }
-          teleport_count += 1;
-        }
-      }
-
-      let mut rng = rand::thread_rng();
-      // FIXME: if teleport_count == 1
-      let mut exit = rng.gen_range(0, teleport_count - 1);
-      if exit >= entrance_idx {
-        exit += 1;
-      }
-
-      for cur in Cursor::all() {
-        if world.maps.level[cur] == MapValue::Teleport {
-          if exit == 0 {
-            // Found exit point
-            let actor = &mut world.actors[entity];
-            world.update.update_cell(actor.pos.cursor());
-
-            // Move to the exit point
-            actor.pos = cur.into();
-            world.update.update_cell(actor.pos.cursor());
-            break;
-          }
-          exit -= 1;
-        }
-      }
-    } else if value == MapValue::Exit {
-      unimplemented!("level exit");
-    } else if value == MapValue::Medikit {
-      // FIXME: play sound picaxe.voc, freq = 11000
-
-      // FIXME: check is_monster_active
-      if true {
-        world.actors[entity].health = world.actors[entity].max_health;
-      }
-
-      world.maps.level[cursor] = MapValue::Passage;
-      world.update.update_player_health(entity);
-      world.update.update_cell(cursor);
-    }
-    Ok(())
-  }
-
-  /// Reveal map based on player vision
-  fn reveal_view(&self, _maps: &mut World) -> Result<(), anyhow::Error> {
-    unimplemented!("reveal view")
-  }
-
-  fn animate_digging(&self, monster: &mut ActorComponent, digging: Digging) -> Result<(), anyhow::Error> {
-    if !monster.moving {
-      return Ok(());
-    }
-    monster.animation %= 30;
-
-    if digging == Digging::Pickaxe && monster.animation == 16 {
-      // FIXME: frequency adjustment
-      //let mut rng = rand::thread_rng();
-      //let freq = rng.gen_range(11000, 11100)
-      // FIXME: play sound picaxe.voc
-    }
-    monster.animation += 1;
-    Ok(())
-  }
-
   fn reveal_map_square(&self, canvas: &mut WindowCanvas, cursor: Cursor, maps: &mut Maps) -> Result<(), anyhow::Error> {
     let glyph = Glyph::Map(maps.level[cursor]);
     let pos = cursor.position();
@@ -792,68 +382,6 @@ impl Application<'_> {
     maps.fog[cursor].reveal();
     Ok(())
   }
-
-  /// Run bombs timer
-  fn bombs_clock(&self, world: &mut World) {
-    for cursor in Cursor::all() {
-      match world.maps.timer[cursor] {
-        0 => {
-          // Not an active entity -- nothing to do!
-        }
-        1 => {
-          world.maps.timer[cursor] = 0;
-          // Some bombs might extinguish themselves
-          if let Some(extinguished) = self.check_fuse_went_out(world.maps.level[cursor]) {
-            world.maps.level[cursor] = extinguished;
-            world.update.update_cell(cursor);
-          } else {
-            self.explode_entity(cursor, world);
-          }
-        }
-        clock => {
-          // Countdown and update animation if needed
-          world.maps.timer[cursor] = clock - 1;
-          let replacement = match world.maps.level[cursor] {
-            MapValue::SmallBomb1 if clock <= 60 => MapValue::SmallBomb2,
-            MapValue::SmallBomb2 if clock <= 30 => MapValue::SmallBomb3,
-            MapValue::BigBomb1 if clock <= 60 => MapValue::BigBomb2,
-            MapValue::BigBomb2 if clock <= 30 => MapValue::BigBomb3,
-            MapValue::Dynamite1 if clock <= 40 => MapValue::Dynamite2,
-            MapValue::Dynamite2 if clock <= 20 => MapValue::Dynamite3,
-            MapValue::Napalm1 => MapValue::Napalm2,
-            MapValue::Napalm2 => MapValue::Napalm1,
-            MapValue::Atomic1 => MapValue::Atomic2,
-            MapValue::Atomic2 => MapValue::Atomic3,
-            MapValue::Atomic3 => MapValue::Atomic1,
-            _ => continue,
-          };
-          world.maps.level[cursor] = replacement;
-          world.update.update_cell(cursor);
-        }
-      }
-    }
-  }
-
-  /// Make a dice roll to check if fuse went out
-  fn check_fuse_went_out(&self, value: MapValue) -> Option<MapValue> {
-    let replacement = match value {
-      MapValue::SmallBomb3 => MapValue::SmallBombExtinguished,
-      MapValue::BigBomb3 => MapValue::BigBombExtinguished,
-      MapValue::Dynamite3 => MapValue::DynamiteExtinguished,
-      MapValue::Napalm1 | MapValue::Napalm2 => MapValue::NapalmExtinguished,
-      _ => return None,
-    };
-    let mut rnd = rand::thread_rng();
-    if rnd.gen_range(0, 1000) <= 10 {
-      Some(replacement)
-    } else {
-      None
-    }
-  }
-
-  fn explode_entity(&self, _cursor: Cursor, _world: &mut World) {
-    unimplemented!()
-  }
 }
 
 fn border_offset(dir: Direction) -> (i32, i32) {
@@ -862,26 +390,5 @@ fn border_offset(dir: Direction) -> (i32, i32) {
     Direction::Right => (10, 0),
     Direction::Up => (0, -3),
     Direction::Down => (0, 10),
-  }
-}
-
-fn open_doors(_maps: &mut World) {
-  unimplemented!()
-}
-
-fn close_doors(_maps: &mut World) {
-  unimplemented!()
-}
-
-fn reapply_blood(cursor: Cursor, world: &mut World) {
-  for actor in &world.actors {
-    if actor.is_dead && actor.pos.cursor() == cursor {
-      if actor.kind == ActorKind::Slime {
-        world.maps.level[cursor] = MapValue::SlimeCorpse;
-      } else {
-        world.maps.level[cursor] = MapValue::Blood;
-      }
-      break;
-    }
   }
 }

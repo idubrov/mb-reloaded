@@ -763,6 +763,23 @@ impl MapValue {
       _ => return None,
     })
   }
+
+  /// Return gold value of the map cell
+  pub fn gold_value(self) -> u32 {
+    match self {
+      MapValue::GoldShield => 15,
+      MapValue::GoldEgg => 25,
+      MapValue::GoldPileCoins => 15,
+      MapValue::GoldBracelet => 10,
+      MapValue::GoldBar => 30,
+      MapValue::GoldCross => 35,
+      MapValue::GoldScepter => 50,
+      MapValue::GoldRubin => 65,
+      MapValue::GoldCrown => 100,
+      MapValue::Diamond => 1000,
+      _ => 0,
+    }
+  }
 }
 
 /// Apply random offset to the coordinate
