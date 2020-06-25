@@ -43,7 +43,7 @@ pub fn main() -> Result<(), anyhow::Error> {
       // sdl2::mixer::allocate_channels(1);
       // sdl2::mixer::Channel(0).play(&audio, 10);
 
-      let data = std::fs::read("../minebomb/BBB.MNE")?;
+      let data = std::fs::read("../minebomb/AAA.MNE")?;
       let map = LevelMap::from_file_map(data)?;
       let level = LevelInfo::File {
         name: "CARAMBA".into(),
@@ -67,9 +67,9 @@ pub fn main() -> Result<(), anyhow::Error> {
       for item in Equipment::all_equipment() {
         players[0].inventory[item] = 50;
       }
-      players[0].inventory[Equipment::SmallPickaxe] = 0;
-      players[0].inventory[Equipment::LargePickaxe] = 0;
-      players[0].inventory[Equipment::Drill] = 0;
+      // players[0].inventory[Equipment::SmallPickaxe] = 0;
+      // players[0].inventory[Equipment::LargePickaxe] = 0;
+      // players[0].inventory[Equipment::Drill] = 0;
       app.play_round(&mut ctx, &mut players, 0, &level, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;

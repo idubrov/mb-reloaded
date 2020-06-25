@@ -9,6 +9,7 @@ use rand::prelude::*;
 
 pub mod actor;
 pub mod equipment;
+mod explode;
 pub mod map;
 pub mod player;
 pub mod position;
@@ -26,6 +27,8 @@ pub struct World<'p> {
   pub players: &'p mut [PlayerComponent],
   // First `players.len()` actors are players
   pub actors: Vec<ActorComponent>,
+  /// If atomic flash should be displayed
+  pub flash: bool,
   pub shake: u32,
   /// Frame counter. Incremented by 1 each tick. Not every process is invoked on every tick.
   pub round_counter: usize,
@@ -65,6 +68,7 @@ impl<'p> World<'p> {
       },
       players,
       actors,
+      flash: false,
       shake: 0,
       round_counter: 0,
       end_round_counter: 0,
@@ -141,6 +145,8 @@ impl<'p> World<'p> {
 
   /// Run on tick of update for the world state
   pub fn tick(&mut self) {
+    self.flash = false;
+
     if self.round_counter % 18 == 0 {
       self.update_super_drill();
     }
@@ -254,7 +260,7 @@ impl<'p> World<'p> {
             self.maps.level[cursor] = extinguished;
             self.update.update_cell(cursor);
           } else {
-            self.explode_entity(cursor);
+            self.explode_entity(cursor, 0);
           }
         }
         clock => {
@@ -279,10 +285,6 @@ impl<'p> World<'p> {
         }
       }
     }
-  }
-
-  fn explode_entity(&self, _cursor: Cursor) {
-    unimplemented!()
   }
 
   /// Activate currently selected item for the given player
@@ -644,6 +646,12 @@ impl<'p> World<'p> {
     }
   }
 
+  /// Apply damage to all actors in the cell. Returns `true` if found live actor in that cell.
+  fn apply_damage_in_cell(&mut self, _cursor: Cursor, _dmg: u16) -> bool {
+    // FIXME: implement
+    false
+  }
+
   fn open_doors(&mut self) {
     unimplemented!()
   }
@@ -905,10 +913,18 @@ fn init_players_positions(players: &mut [ActorComponent]) {
 }
 
 #[derive(Clone, Copy, PartialEq)]
+pub enum SplatterKind {
+  Blood,
+  Slime,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 pub enum Update {
   Actor(EntityIndex, Digging),
   Map(Cursor),
   Border(Cursor),
+  BurnedBorder(Cursor),
+  Splatter(Cursor, Direction, SplatterKind),
 }
 
 /// List of UI areas to update
@@ -950,6 +966,14 @@ impl UpdateQueue {
 
   pub fn update_cell_border(&mut self, cursor: Cursor) {
     self.queue.push(Update::Border(cursor));
+  }
+
+  pub fn update_burned_border(&mut self, cursor: Cursor) {
+    self.queue.push(Update::BurnedBorder(cursor));
+  }
+
+  pub fn update_splatter(&mut self, cursor: Cursor, direction: Direction, splatter: SplatterKind) {
+    self.queue.push(Update::Splatter(cursor, direction, splatter));
   }
 }
 

@@ -164,6 +164,13 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     Ok(())
   }
 
+  pub fn present_flash(&mut self) -> Result<(), anyhow::Error> {
+    self.canvas.set_draw_color(Color::WHITE);
+    self.canvas.clear();
+    self.canvas.present();
+    Ok(())
+  }
+
   pub fn wait_frame(&self) {
     // We should wait for the remaining time; for now just do a fixed delay.
     ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));

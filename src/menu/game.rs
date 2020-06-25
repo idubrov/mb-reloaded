@@ -7,8 +7,9 @@ use crate::world::actor::ActorComponent;
 use crate::world::map::{LevelInfo, LevelMap, MapValue, DIRT_BORDER_BITMAP, MAP_COLS, MAP_ROWS};
 use crate::world::player::PlayerComponent;
 use crate::world::position::{Cursor, Direction};
-use crate::world::{Maps, Update, World};
+use crate::world::{Maps, SplatterKind, Update, World};
 use crate::Application;
+use rand::prelude::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -170,6 +171,12 @@ impl Application<'_> {
             Update::Border(cursor) => {
               self.render_dirt_border(canvas, cursor, &world.maps.level)?;
             }
+            Update::BurnedBorder(cursor) => {
+              self.render_burned_border(canvas, cursor, &world.maps.level)?;
+            }
+            Update::Splatter(cursor, dir, splatter) => {
+              self.render_splatter(canvas, cursor, dir, splatter)?;
+            }
           }
         }
 
@@ -186,7 +193,9 @@ impl Application<'_> {
         break RoundEnd::Round;
       }
 
-      if world.shake % 2 != 0 {
+      if world.flash {
+        ctx.present_flash()?;
+      } else if world.shake % 2 != 0 {
         ctx.present_shake(world.shake)?;
       } else {
         ctx.present()?;
@@ -264,8 +273,9 @@ impl Application<'_> {
     cursor: Cursor,
     level: &LevelMap,
   ) -> Result<(), anyhow::Error> {
-    let pos_x = i32::from(10 * cursor.col);
-    let pos_y = i32::from(10 * cursor.row + 30);
+    let pos = cursor.position();
+    let pos_x = i32::from(pos.x);
+    let pos_y = i32::from(pos.y);
 
     // Dirt
     for dir in Direction::all() {
@@ -288,11 +298,82 @@ impl Application<'_> {
     // Stone
     for dir in Direction::all() {
       let value = level[cursor.to(dir)];
-      if value >= MapValue::Stone1 && value <= MapValue::Stone4 {
+      if value.is_stone() {
         let (dx, dy) = border_offset(dir);
         self
           .glyphs
           .render(canvas, pos_x + dx, pos_y + dy, Glyph::StoneBorder(dir.reverse()))?;
+      }
+    }
+    Ok(())
+  }
+
+  /// Render burned border for both stone and dirt blocks
+  fn render_burned_border(
+    &self,
+    canvas: &mut WindowCanvas,
+    cursor: Cursor,
+    level: &LevelMap,
+  ) -> Result<(), anyhow::Error> {
+    let pos = cursor.position();
+    let pos_x = i32::from(pos.x);
+    let pos_y = i32::from(pos.y);
+
+    let value = level[cursor];
+    if value == MapValue::Explosion || value == MapValue::MonsterExploding {
+      for dir in Direction::all() {
+        let value = level[cursor.to(dir)];
+        let glyph = if value.is_sand() || value == MapValue::LightGravel || value == MapValue::HeavyGravel {
+          Glyph::BurnedBorder(dir.reverse())
+        } else if value.is_stone() || value.is_stone_corner() {
+          Glyph::StoneBorder(dir.reverse())
+        } else {
+          continue;
+        };
+        let (dx, dy) = border_offset(dir);
+        self.glyphs.render(canvas, pos_x + dx, pos_y + dy, glyph)?;
+      }
+    } else if value == MapValue::HeavyGravel {
+      // FIXME: not sure when this one is triggered?
+      for dir in Direction::all() {
+        let value = level[cursor.to(dir)];
+        if value.is_passable() || value == MapValue::Explosion || value == MapValue::MonsterExploding {
+          let (dx, dy) = border_offset(dir);
+          self
+            .glyphs
+            .render(canvas, pos_x + dx, pos_y + dy, Glyph::BurnedBorder(dir.reverse()))?;
+        }
+      }
+    }
+    Ok(())
+  }
+
+  fn render_splatter(
+    &self,
+    canvas: &mut WindowCanvas,
+    cursor: Cursor,
+    dir: Direction,
+    splatter: SplatterKind,
+  ) -> Result<(), anyhow::Error> {
+    let mut rng = rand::thread_rng();
+    let color = match splatter {
+      SplatterKind::Blood => 3,
+      SplatterKind::Slime => 4,
+    };
+    canvas.set_draw_color(self.players.palette[color]);
+    let pos = cursor.position();
+    loop {
+      let (delta_x, delta_y) = match dir {
+        Direction::Left => (-5 - rng.gen_range(0, 3), rng.gen_range(-5, 5)),
+        Direction::Right => (5 + rng.gen_range(0, 3), rng.gen_range(-5, 5)),
+        Direction::Up => (rng.gen_range(-5, 5), -5 - rng.gen_range(0, 3)),
+        Direction::Down => (rng.gen_range(-5, 5), 5 + rng.gen_range(0, 3)),
+      };
+      canvas
+        .draw_point((i32::from(pos.x) + delta_x, i32::from(pos.y) + delta_y))
+        .map_err(SdlError)?;
+      if rng.gen_range(0, 10) == 0 {
+        break;
       }
     }
     Ok(())
@@ -386,9 +467,9 @@ impl Application<'_> {
 
 fn border_offset(dir: Direction) -> (i32, i32) {
   match dir {
-    Direction::Left => (-4, 0),
-    Direction::Right => (10, 0),
-    Direction::Up => (0, -3),
-    Direction::Down => (0, 10),
+    Direction::Left => (-9, -5),
+    Direction::Right => (5, -5),
+    Direction::Up => (-5, -8),
+    Direction::Down => (-5, 5),
   }
 }

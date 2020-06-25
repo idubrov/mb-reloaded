@@ -106,6 +106,17 @@ impl Cursor {
     Cursor { row, col }
   }
 
+  /// Offset given cursor by given delta; returns `None` if hits border of the map or outside of the map.
+  pub fn offset(self, delta_row: i16, delta_col: i16) -> Option<Cursor> {
+    let row = (self.row as i16) + delta_row;
+    let col = (self.col as i16) + delta_col;
+    if row > 0 && row < (MAP_ROWS - 1) as i16 && col > 0 && col < (MAP_COLS - 1) as i16 {
+      Some(Cursor::new(row as u16, col as u16))
+    } else {
+      None
+    }
+  }
+
   /// Iterate through all map cells (including the border ones)
   pub fn all() -> impl Iterator<Item = Cursor> {
     (0..MAP_ROWS)

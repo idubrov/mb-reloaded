@@ -40,6 +40,7 @@ pub enum Glyph {
   Map(MapValue),
   SandBorder(Direction),
   StoneBorder(Direction),
+  BurnedBorder(Direction),
   Monster(ActorKind, Direction, Digging, AnimationPhase),
 }
 
@@ -75,6 +76,12 @@ impl Glyph {
       Glyph::StoneBorder(Direction::Right) => (154, 60, 157, 69),
       Glyph::StoneBorder(Direction::Up) => (148, 71, 157, 73),
       Glyph::StoneBorder(Direction::Down) => (148, 75, 157, 77),
+
+      Glyph::BurnedBorder(Direction::Left) => (194, 117, 197, 126),
+      Glyph::BurnedBorder(Direction::Right) => (200, 117, 203, 126),
+      Glyph::BurnedBorder(Direction::Up) => (194, 128, 203, 130),
+      Glyph::BurnedBorder(Direction::Down) => (194, 132, 203, 134),
+
       Glyph::Monster(kind, dir, digging, anim) => {
         let anim = anim as u8;
         let (pos_x, pos_y) = match kind {
