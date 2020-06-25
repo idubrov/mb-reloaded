@@ -1,3 +1,4 @@
+use crate::effects::SoundEffect;
 use crate::glyphs::Digging;
 use crate::keys::Key;
 use crate::world::actor::{ActorComponent, ActorKind};
@@ -34,8 +35,33 @@ pub struct World<'p> {
   pub round_counter: usize,
   /// Counter for the "end of round" condition
   pub end_round_counter: usize,
-  ///
+  /// View updates
   pub update: UpdateQueue,
+  /// Sound effects to play
+  pub effects: SoundEffectsQueue,
+}
+
+/// Request to play sound effect at a given frequency and location
+pub struct SoundRequest {
+  pub effect: SoundEffect,
+  pub frequency: i32,
+  /// Position to play the effect in the world
+  pub location: Cursor,
+}
+
+#[derive(Default)]
+pub struct SoundEffectsQueue {
+  pub queue: Vec<SoundRequest>,
+}
+
+impl SoundEffectsQueue {
+  fn play(&mut self, effect: SoundEffect, frequency: i32, location: Cursor) {
+    self.queue.push(SoundRequest {
+      effect,
+      frequency,
+      location,
+    });
+  }
 }
 
 pub type EntityIndex = usize;
@@ -73,6 +99,7 @@ impl<'p> World<'p> {
       round_counter: 0,
       end_round_counter: 0,
       update: Default::default(),
+      effects: Default::default(),
     }
   }
 
@@ -455,9 +482,11 @@ impl<'p> World<'p> {
       self.actors[entity].accumulated_cash = gold_value;
 
       if value >= MapValue::SmallPickaxe && value <= MapValue::Drill {
-        // FIXME: Play picaxe.voc, freq: 11000
+        self.effects.play(SoundEffect::Picaxe, 11000, cursor);
       } else {
-        // FIXME: play kili.voc, freq: 10000, 12599 or 14983
+        let mut rng = rand::thread_rng();
+        let frequency = *[10000, 12599, 14983].choose(&mut rng).unwrap();
+        self.effects.play(SoundEffect::Kili, frequency, cursor);
         if let Some(player) = self.player_mut(entity) {
           player.stats.treasures_collected += 1;
         }

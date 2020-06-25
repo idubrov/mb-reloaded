@@ -1,5 +1,6 @@
 use crate::bitmap;
 use crate::bitmap::MapValueSet;
+use crate::effects::SoundEffect;
 use crate::world::map::MapValue;
 use crate::world::position::{Cursor, Direction};
 use crate::world::{SplatterKind, World};
@@ -54,6 +55,9 @@ impl World<'_> {
           }
         }
 
+        self.effects.play(SoundEffect::Explos3, 5000, cursor);
+        self.effects.play(SoundEffect::Explos3, 9900, cursor);
+        self.effects.play(SoundEffect::Explos3, 10000, cursor);
         // FIXME: play sound EXPLOS3.VOC, 5000 frequency, at center
         // FIXME: play sound EXPLOS3.VOC, 9900 frequency, at center
         // FIXME: play sound EXPLOS3.VOC, 10000 frequency, at center

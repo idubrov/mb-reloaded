@@ -141,9 +141,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.70"
+version = "0.2.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3baa92041a6fec78c687fa0cc2b3fae8884f743d672cf551bed1d6dac6988d0f"
+checksum = "9457b06509d27052635f90d6466700c65095fdf75409b3fbdd903e988b886f49"
 
 [[package]]
 name = "mb-reloaded"
@@ -151,6 +151,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "byteorder",
+ "mb-sdl2-effects",
  "num_enum",
  "rand",
  "ref-cast",
@@ -168,6 +169,16 @@ dependencies = [
  "rand",
  "structopt",
  "thiserror",
+]
+
+[[package]]
+name = "mb-sdl2-effects"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "once_cell",
+ "sdl2",
+ "sdl2-sys",
 ]
 
 [[package]]
@@ -191,6 +202,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b631f7e854af39a1739f401cf34a8a013dfe09eac4fa4dba91e9768bd28168d"
 
 [[package]]
 name = "png"

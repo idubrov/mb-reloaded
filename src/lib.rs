@@ -1,4 +1,5 @@
 use crate::context::ApplicationContext;
+use crate::effects::SoundEffects;
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
@@ -11,9 +12,9 @@ use sdl2::mixer::Music;
 use std::path::Path;
 
 mod args;
-mod audio;
 pub mod bitmap;
 mod context;
+pub mod effects;
 mod error;
 pub mod fonts;
 mod glyphs;
@@ -40,7 +41,7 @@ pub fn main() -> Result<(), anyhow::Error> {
     if std::env::var("DEV").is_ok() {
       // let data = std::fs::read("../minebomb/KARJAISU.VOC")?;
       // let audio = crate::audio::from_voc_bytes(data, Some(10300))?;
-      // sdl2::mixer::allocate_channels(1);
+      sdl2::mixer::allocate_channels(16);
       // sdl2::mixer::Channel(0).play(&audio, 10);
 
       let data = std::fs::read("../minebomb/AAA.MNE")?;
@@ -96,6 +97,7 @@ struct Application<'t> {
   // Position 465 is position of shop music.
   music2: Music<'static>,
   registered: String,
+  effects: SoundEffects,
 }
 
 impl<'textures> Application<'textures> {
@@ -120,6 +122,7 @@ impl<'textures> Application<'textures> {
       players: ctx.load_spy("PLAYERS.SPY")?,
       music1: ctx.load_music("HUIPPE.S3M")?,
       music2: ctx.load_music("OEKU.S3M")?,
+      effects: SoundEffects::new(ctx.game_dir())?,
       registered: load_registered(ctx.game_dir()).unwrap_or_else(String::new),
     })
   }

@@ -200,6 +200,13 @@ impl Application<'_> {
       } else {
         ctx.present()?;
       }
+
+      // Play sound effects
+      for request in &world.effects.queue {
+        self.effects.play(request.effect, request.frequency, request.location)?;
+      }
+      world.effects.queue.clear();
+
       std::thread::sleep(std::time::Duration::from_millis(20));
     };
     ctx.animate(Animation::FadeDown, 7)?;
