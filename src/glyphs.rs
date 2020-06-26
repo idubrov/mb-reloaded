@@ -294,7 +294,8 @@ const MAP_GLYPHS: [(i16, i16); 135] = [
   (310, 20),
   (310, 20),
   (310, 20),
-  UNMAPPED,
+  // Metal wall being placed
+  (0, 0),
   (140, 30),
   (150, 40),
   (0, 70),

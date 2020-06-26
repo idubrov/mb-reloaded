@@ -1,7 +1,7 @@
 use crate::bitmap;
 use crate::bitmap::MapValueSet;
 use crate::effects::SoundEffect;
-use crate::world::map::MapValue;
+use crate::world::map::{MapValue, MAP_ROWS};
 use crate::world::position::{Cursor, Direction};
 use crate::world::{SplatterKind, World};
 use rand::prelude::*;
@@ -22,10 +22,10 @@ impl World<'_> {
       MapValue::ButtonOff | MapValue::ButtonOn => {
         // Nothing
       }
-      MapValue::MapA9 => {
+      MapValue::MetalWallPlaced => {
         self.maps.level[cursor] = MapValue::MetalWall;
         self.update.update_cell(cursor);
-        // FIXME: Play 11000 freq PICAXE
+        self.effects.play(SoundEffect::Picaxe, 11000, cursor);
         self.maps.hits[cursor] = 30_000;
       }
       MapValue::JumpingBomb => {
@@ -58,12 +58,8 @@ impl World<'_> {
         self.effects.play(SoundEffect::Explos3, 5000, cursor);
         self.effects.play(SoundEffect::Explos3, 9900, cursor);
         self.effects.play(SoundEffect::Explos3, 10000, cursor);
-        // FIXME: play sound EXPLOS3.VOC, 5000 frequency, at center
-        // FIXME: play sound EXPLOS3.VOC, 9900 frequency, at center
-        // FIXME: play sound EXPLOS3.VOC, 10000 frequency, at center
-
         self.flash = true;
-        self.shake += 10;
+        self.shake = (self.shake + 10).min(MAP_ROWS);
       }
 
       MapValue::SmallBomb1
@@ -73,7 +69,7 @@ impl World<'_> {
       | MapValue::SmallBombExtinguished => {
         self.maps.level[cursor] = MapValue::Passage;
         self.explode_pattern(cursor, 60, &SMALL_BOMB_PATTERN, total);
-        // PIKKUPOM.VOC, 11000 freq, at center
+        self.effects.play(SoundEffect::Pikkupom, 11000, cursor);
       }
 
       MapValue::SmallCrucifixBomb | MapValue::LargeCrucifixBomb => {
@@ -93,11 +89,6 @@ impl World<'_> {
               break;
             }
             cursor = cursor.to(dir);
-            if is_small {
-              self.explode_cell(cursor, 100, false, total);
-            } else {
-              self.explode_cell(cursor, 200, false, total);
-            }
 
             match self.maps.level[cursor] {
               MapValue::MetalWall | MapValue::Exit | MapValue::Door | MapValue::ButtonOff | MapValue::ButtonOn => {
@@ -105,14 +96,21 @@ impl World<'_> {
               }
               _ => {}
             }
+
+            if is_small {
+              self.explode_cell(cursor, 100, false, total);
+            } else {
+              self.explode_cell(cursor, 200, false, total);
+            }
           }
         }
 
-        // if is_small {
-        //   // FIXME: play EXPLOS1.VOC, 11000, at center
-        // } else {
-        //   // FIXME: play EXPLOS3.VOOC, 11000, at center
-        // }
+        let effect = if is_small {
+          SoundEffect::Explos1
+        } else {
+          SoundEffect::Explos3
+        };
+        self.effects.play(effect, 11000, cursor);
       }
       MapValue::BigBomb1
       | MapValue::BigBomb2
@@ -125,7 +123,7 @@ impl World<'_> {
       | MapValue::BigBombExtinguished => {
         self.maps.level[cursor] = MapValue::Passage;
         self.explode_pattern(cursor, 84, &BIG_BOMB_PATTERN, total);
-        // FIXME: play EXPLOS1.VOC, 11000, at cursor
+        self.effects.play(SoundEffect::Explos1, 11000, cursor);
       }
 
       MapValue::Dynamite1
@@ -139,24 +137,24 @@ impl World<'_> {
       | MapValue::DynamiteExtinguished => {
         self.maps.level[cursor] = MapValue::Passage;
         self.explode_pattern(cursor, 100, &DYNAMITE_PATTERN, total);
-        // FIXME: play EXPLOS2, 11000, at cursor
+        self.effects.play(SoundEffect::Explos2, 11000, cursor);
       }
 
       MapValue::ExplosivePlasticBomb => {
-        // FIXME: play 11000; at cursor, URETHAN.VOC
         self.expand_algo::<ExplodingPlasticExpansion>(cursor, total);
+        self.effects.play(SoundEffect::Urethan, 11000, cursor);
       }
       MapValue::DiggerBomb => {
-        // FIXME: play EXPLOS5.VOC, 11000, at cursor
         self.expand_algo::<DiggerExpansion>(cursor, total);
+        self.effects.play(SoundEffect::Explos5, 11000, cursor);
       }
       MapValue::Napalm1 | MapValue::Napalm2 | MapValue::NapalmExtinguished => {
-        // FIXME: play EXPLOS5.VOC, 11000, at cursor
         self.expand_algo::<NapalmExpansion>(cursor, total);
+        self.effects.play(SoundEffect::Explos5, 11000, cursor);
       }
       MapValue::PlasticBomb => {
-        // FIXME: play 11000; at cursor, URETHAN.VOC
         self.expand_algo::<PlasticExpansion>(cursor, total);
+        self.effects.play(SoundEffect::Urethan, 11000, cursor);
       }
       MapValue::Explosion => {
         self.maps.level[cursor] = MapValue::Smoke1;
@@ -286,7 +284,7 @@ impl World<'_> {
     self.maps.timer[cursor] = 3;
     self.update.update_cell(cursor);
 
-    // FIXME: play 11000 EXPLOS1.VOC; positioned at cursor
+    self.effects.play(SoundEffect::Explos1, 11000, cursor);
 
     let from = rng.gen_range(0, 5);
     for _ in from..15 {
@@ -300,7 +298,7 @@ impl World<'_> {
       };
 
       self.explode_pattern(center, 84, &BIG_BOMB_PATTERN, total);
-      // FIXME: play 11000 EXPLOS1.VOC; positioned at center
+      self.effects.play(SoundEffect::Explos1, 11000, center);
     }
   }
 

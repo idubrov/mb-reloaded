@@ -30,7 +30,7 @@ pub struct World<'p> {
   pub actors: Vec<ActorComponent>,
   /// If atomic flash should be displayed
   pub flash: bool,
-  pub shake: u32,
+  pub shake: u16,
   /// Frame counter. Incremented by 1 each tick. Not every process is invoked on every tick.
   pub round_counter: usize,
   /// Counter for the "end of round" condition
@@ -252,8 +252,7 @@ impl<'p> World<'p> {
       let actor = &mut self.actors[player];
       if !actor.is_dead && actor.health < 1 {
         self.players[player].stats.deaths += 1;
-
-        // FIXME: play sound sample, 11000, AARGH.VOC
+        self.effects.play(SoundEffect::Aargh, 11000, actor.pos.cursor());
         let cursor = actor.pos.cursor();
         self.maps.level[cursor] = MapValue::Blood;
         self.update.update_cell(cursor);
@@ -261,7 +260,6 @@ impl<'p> World<'p> {
     }
   }
 
-  // FIXME: make private
   fn update_super_drill(&mut self) {
     for actor in &mut self.actors[0..self.players.len()] {
       if actor.super_drill_count > 0 {
@@ -372,7 +370,7 @@ impl<'p> World<'p> {
     let (players, monsters) = self.actors.split_at_mut(self.players.len());
     for monster in monsters {
       if monster.is_active {
-        // Monster is ative already
+        // Monster is active already
         continue;
       }
       for player in players.iter() {
@@ -388,10 +386,10 @@ impl<'p> World<'p> {
           || in_direct_sight(monster.pos.cursor(), player.pos.cursor(), &self.maps.level)
           || in_fov_sight(monster.pos.cursor(), player.pos.cursor(), monster.facing);
         if monster.is_active {
-          // FIXME: play KARJAISU.VOC
-          //  10300 frequency for alien
-          //  11000 frequency for others
-          eprintln!("monster activated!");
+          let frequency = if monster.kind == ActorKind::Alien { 10300 } else { 11000 };
+          self
+            .effects
+            .play(SoundEffect::Karjaisu, frequency, monster.pos.cursor());
         }
       }
     }
@@ -529,7 +527,6 @@ impl<'p> World<'p> {
         }
       }
     } else if value == MapValue::WeaponsCrate {
-      // FIXME: play sound sample picaxe, freq = 11000, at column
       let mut rng = rand::thread_rng();
       match rng.gen_range(0, 5) {
         0 => {
@@ -592,6 +589,7 @@ impl<'p> World<'p> {
 
       self.update.update_player_selection(entity);
       self.update.update_cell(cursor);
+      self.effects.play(SoundEffect::Picaxe, 11000, cursor);
     } else if value == MapValue::LifeItem {
       if self.actors[entity].kind == ActorKind::Player1 {
         self.players[0].lives += 1;
@@ -647,16 +645,14 @@ impl<'p> World<'p> {
     } else if value == MapValue::Exit {
       unimplemented!("level exit");
     } else if value == MapValue::Medikit {
-      // FIXME: play sound picaxe.voc, freq = 11000
-
-      // FIXME: check is_monster_active
-      if true {
+      if self.actors[entity].is_active {
         self.actors[entity].health = self.actors[entity].max_health;
       }
 
       self.maps.level[cursor] = MapValue::Passage;
       self.update.update_player_health(entity);
       self.update.update_cell(cursor);
+      self.effects.play(SoundEffect::Picaxe, 11000, cursor);
     }
   }
 
@@ -755,10 +751,9 @@ impl<'p> World<'p> {
     let actor = &mut self.actors[entity];
     actor.animation %= 30;
     if digging == Digging::Pickaxe && actor.animation == 16 {
-      // FIXME: frequency adjustment
-      //let mut rng = rand::thread_rng();
-      //let freq = rng.gen_range(11000, 11100)
-      // FIXME: play sound picaxe.voc
+      let mut rng = rand::thread_rng();
+      let frequency = rng.gen_range(11000, 11100);
+      self.effects.play(SoundEffect::Picaxe, frequency, cursor);
     }
     actor.animation += 1;
   }
@@ -803,7 +798,7 @@ fn item_placement_level(item: Equipment, direction: Direction, player: usize) ->
     Equipment::Plastic => MapValue::PlasticBomb,
     Equipment::ExplosivePlastic => MapValue::ExplosivePlasticBomb,
     Equipment::Digger => MapValue::DiggerBomb,
-    Equipment::MetalWall => MapValue::MetalWall,
+    Equipment::MetalWall => MapValue::MetalWallPlaced,
     Equipment::Teleport => MapValue::Teleport,
     Equipment::Biomass => MapValue::Biomass,
     Equipment::JumpingBomb => MapValue::JumpingBomb,
@@ -835,6 +830,7 @@ fn item_placement_timer(item: Equipment) -> u16 {
     Equipment::Mine | Equipment::SmallRadio | Equipment::LargeRadio | Equipment::Barrel | Equipment::Teleport => 0,
     Equipment::Napalm => 260,
     Equipment::AtomicBomb => 280,
+    Equipment::MetalWall => 1,
     Equipment::ExplosivePlastic => 90,
     Equipment::Dynamite => 80,
     Equipment::JumpingBomb => {

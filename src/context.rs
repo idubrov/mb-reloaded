@@ -143,7 +143,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     self.present_shake(0)
   }
 
-  pub fn present_shake(&mut self, shake: u32) -> Result<(), anyhow::Error> {
+  pub fn present_shake(&mut self, shake: u16) -> Result<(), anyhow::Error> {
     self.buffer.set_blend_mode(BlendMode::None);
     self.buffer.set_alpha_mod(255);
     let (w, h) = self.canvas.output_size().map_err(SdlError)?;
@@ -151,7 +151,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
 
     // Render "shaking" screen effect
     if shake != 0 {
-      let top = shake * 10 * h / SCREEN_HEIGHT;
+      let top = u32::from(shake) * 10 * h / SCREEN_HEIGHT;
       target.set_y(-(top as i32));
       self.canvas.set_draw_color(Color::BLACK);
       self

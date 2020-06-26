@@ -594,7 +594,7 @@ pub enum MapValue {
   GrenadeFlyingLeft = 0xA6,
   GrenadeFlyingDown = 0xA7,
   GrenadeFlyingUp = 0xA8,
-  MapA9 = 0xA9,
+  MetalWallPlaced = 0xA9,
   DynamiteExtinguished = 0xAA,
   JumpingBomb = 0xAB,
   Brick = 0xAC,

@@ -25,7 +25,11 @@ pub fn play_sound_sample(channel: Channel, frequency: i32, chunk: Arc<[u8]>, pos
     raw: unsafe { &mut PLACEHOLDER as *mut _ },
     owned: false,
   };
-  let channel = channel.play(&placeholder, -1)?;
+  // FIXME: maybe, stop other channel?
+  let channel = match channel.play(&placeholder, -1) {
+    Ok(channel) => channel,
+    Err(_) => return Ok(()),
+  };
   let (mixer_frequency, format, channels) = sdl2::mixer::query_spec()?;
   let effect = Box::new(SampleCallback {
     channels: channels as usize,
