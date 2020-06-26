@@ -1,6 +1,6 @@
 use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
-use crate::glyphs::{AnimationPhase, Digging, Glyph};
+use crate::glyphs::{AnimationPhase, Border, Digging, Glyph};
 use crate::keys::Key;
 use crate::settings::GameSettings;
 use crate::world::actor::ActorComponent;
@@ -296,9 +296,12 @@ impl Application<'_> {
       };
       if (value >= MapValue::Sand1 && value <= MapValue::HeavyGravel) || is_corner {
         let (dx, dy) = border_offset(dir);
-        self
-          .glyphs
-          .render(canvas, pos_x + dx, pos_y + dy, Glyph::SandBorder(dir.reverse()))?;
+        self.glyphs.render(
+          canvas,
+          pos_x + dx,
+          pos_y + dy,
+          Glyph::SandBorder(dir.reverse(), Border::Normal),
+        )?;
       }
     }
 
@@ -307,9 +310,12 @@ impl Application<'_> {
       let value = level[cursor.to(dir)];
       if value.is_stone() {
         let (dx, dy) = border_offset(dir);
-        self
-          .glyphs
-          .render(canvas, pos_x + dx, pos_y + dy, Glyph::StoneBorder(dir.reverse()))?;
+        self.glyphs.render(
+          canvas,
+          pos_x + dx,
+          pos_y + dy,
+          Glyph::StoneBorder(dir.reverse(), Border::Normal),
+        )?;
       }
     }
     Ok(())
@@ -331,9 +337,9 @@ impl Application<'_> {
       for dir in Direction::all() {
         let value = level[cursor.to(dir)];
         let glyph = if value.is_sand() || value == MapValue::LightGravel || value == MapValue::HeavyGravel {
-          Glyph::BurnedBorder(dir.reverse())
+          Glyph::SandBorder(dir.reverse(), Border::Burned)
         } else if value.is_stone() || value.is_stone_corner() {
-          Glyph::StoneBorder(dir.reverse())
+          Glyph::StoneBorder(dir.reverse(), Border::Burned)
         } else {
           continue;
         };
@@ -346,9 +352,12 @@ impl Application<'_> {
         let value = level[cursor.to(dir)];
         if value.is_passable() || value == MapValue::Explosion || value == MapValue::MonsterExploding {
           let (dx, dy) = border_offset(dir);
-          self
-            .glyphs
-            .render(canvas, pos_x + dx, pos_y + dy, Glyph::BurnedBorder(dir.reverse()))?;
+          self.glyphs.render(
+            canvas,
+            pos_x + dx,
+            pos_y + dy,
+            Glyph::SandBorder(dir.reverse(), Border::Burned),
+          )?;
         }
       }
     }

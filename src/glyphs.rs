@@ -27,6 +27,13 @@ pub enum Digging {
   Pickaxe,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum Border {
+  Burned,
+  Normal,
+}
+
 /// Type of the glyph that we want to render
 #[derive(Clone, Copy)]
 pub enum Glyph {
@@ -38,9 +45,8 @@ pub enum Glyph {
   Ready,
   // Glyph used to render map cell; note that not all of the glyph actually have an image
   Map(MapValue),
-  SandBorder(Direction),
-  StoneBorder(Direction),
-  BurnedBorder(Direction),
+  SandBorder(Direction, Border),
+  StoneBorder(Direction, Border),
   Monster(ActorKind, Direction, Digging, AnimationPhase),
 }
 
@@ -67,20 +73,25 @@ impl Glyph {
         };
         (x, y, x + 9, y + 9)
       }
-      Glyph::SandBorder(Direction::Left) => (194, 98, 197, 107),
-      Glyph::SandBorder(Direction::Right) => (200, 98, 203, 107),
-      Glyph::SandBorder(Direction::Up) => (194, 109, 203, 111),
-      Glyph::SandBorder(Direction::Down) => (194, 113, 203, 115),
+      Glyph::SandBorder(Direction::Left, Border::Normal) => (194, 98, 197, 107),
+      Glyph::SandBorder(Direction::Right, Border::Normal) => (200, 98, 203, 107),
+      Glyph::SandBorder(Direction::Up, Border::Normal) => (194, 109, 203, 111),
+      Glyph::SandBorder(Direction::Down, Border::Normal) => (194, 113, 203, 115),
 
-      Glyph::StoneBorder(Direction::Left) => (148, 60, 151, 69),
-      Glyph::StoneBorder(Direction::Right) => (154, 60, 157, 69),
-      Glyph::StoneBorder(Direction::Up) => (148, 71, 157, 73),
-      Glyph::StoneBorder(Direction::Down) => (148, 75, 157, 77),
+      Glyph::StoneBorder(Direction::Left, Border::Normal) => (148, 60, 151, 69),
+      Glyph::StoneBorder(Direction::Right, Border::Normal) => (154, 60, 157, 69),
+      Glyph::StoneBorder(Direction::Up, Border::Normal) => (148, 71, 157, 73),
+      Glyph::StoneBorder(Direction::Down, Border::Normal) => (148, 75, 157, 77),
 
-      Glyph::BurnedBorder(Direction::Left) => (194, 117, 197, 126),
-      Glyph::BurnedBorder(Direction::Right) => (200, 117, 203, 126),
-      Glyph::BurnedBorder(Direction::Up) => (194, 128, 203, 130),
-      Glyph::BurnedBorder(Direction::Down) => (194, 132, 203, 134),
+      Glyph::SandBorder(Direction::Left, Border::Burned) => (194, 117, 197, 126),
+      Glyph::SandBorder(Direction::Right, Border::Burned) => (200, 117, 203, 126),
+      Glyph::SandBorder(Direction::Up, Border::Burned) => (194, 128, 203, 130),
+      Glyph::SandBorder(Direction::Down, Border::Burned) => (194, 132, 203, 134),
+
+      Glyph::StoneBorder(Direction::Left, Border::Burned) => (205, 117, 208, 126),
+      Glyph::StoneBorder(Direction::Right, Border::Burned) => (211, 117, 214, 126),
+      Glyph::StoneBorder(Direction::Up, Border::Burned) => (205, 128, 214, 130),
+      Glyph::StoneBorder(Direction::Down, Border::Burned) => (205, 132, 214, 134),
 
       Glyph::Monster(kind, dir, digging, anim) => {
         let anim = anim as u8;
