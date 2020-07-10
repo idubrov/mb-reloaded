@@ -495,6 +495,11 @@ impl Application<'_> {
   }
 
   fn reveal_map_square(&self, canvas: &mut WindowCanvas, cursor: Cursor, maps: &mut Maps) -> Result<(), anyhow::Error> {
+    // FIXME: temporary. Need to figure out what to do with time bar
+    if cursor.row == MAP_ROWS - 1 {
+      return Ok(());
+    }
+
     let glyph = Glyph::Map(maps.level[cursor]);
     let pos = cursor.position();
     self

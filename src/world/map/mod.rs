@@ -5,7 +5,7 @@ pub const MAP_ROWS: u16 = 45;
 pub const MAP_COLS: u16 = 64;
 
 use crate::world::position::Cursor;
-pub use bitmaps::{CANNOT_PLACE_BOMB, DIRT_BORDER_BITMAP, PUSHABLE_BITMAP};
+pub use bitmaps::{CANNOT_PLACE_BOMB, CAN_EXTINGUISH, DIRT_BORDER_BITMAP, EXTINGUISHER_PASSABLE, PUSHABLE_BITMAP};
 pub use level::{InvalidMap, LevelInfo, LevelMap, MapValue};
 use rand::prelude::*;
 use ref_cast::RefCast;

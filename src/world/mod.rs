@@ -3,7 +3,10 @@ use crate::glyphs::Digging;
 use crate::keys::Key;
 use crate::world::actor::{ActorComponent, ActorKind};
 use crate::world::equipment::Equipment;
-use crate::world::map::{FogMap, HitsMap, LevelMap, MapValue, TimerMap, CANNOT_PLACE_BOMB, PUSHABLE_BITMAP};
+use crate::world::map::{
+  FogMap, HitsMap, LevelMap, MapValue, TimerMap, CANNOT_PLACE_BOMB, CAN_EXTINGUISH, EXTINGUISHER_PASSABLE,
+  PUSHABLE_BITMAP,
+};
 use crate::world::player::PlayerComponent;
 use crate::world::position::{Cursor, Direction, Position};
 use rand::prelude::*;
@@ -333,7 +336,7 @@ impl<'p> World<'p> {
         unimplemented!("activate clone");
       }
       Equipment::Extinguisher => {
-        unimplemented!("extinguisher");
+        self.activate_extinguisher(cursor, self.actors[player].facing);
       }
       Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill | Equipment::Armor => {
         // Shouldn't really happen, but whatever.
@@ -365,11 +368,55 @@ impl<'p> World<'p> {
     // FIXME: reveal map square
   }
 
-  // FIXME: make private
-  pub fn monsters_detect_players(&mut self) {
-    // FIXME: detect players
-    // Visibility rules:
+  /// Fire a fire extinguisher
+  fn activate_extinguisher(&mut self, mut cursor: Cursor, direction: Direction) {
+    for _ in 0..6 {
+      cursor = cursor.to(direction);
+      if !self.extinguish_cell(cursor) {
+        break;
+      }
+    }
+  }
 
+  /// Returns `true` if cell is passable
+  fn extinguish_cell(&mut self, cursor: Cursor) -> bool {
+    let value = self.maps.level[cursor];
+    // FIXME: adjust bitmap not to include grenade!
+    if EXTINGUISHER_PASSABLE[value] && (value < MapValue::GrenadeFlyingRight || value > MapValue::GrenadeFlyingUp) {
+      self.maps.timer[cursor] = 0;
+
+      if CAN_EXTINGUISH[value] {
+        self.maps.hits[cursor] = 20;
+      }
+
+      match value {
+        MapValue::Dynamite1 | MapValue::Dynamite2 | MapValue::Dynamite3 => {
+          self.maps.level[cursor] = MapValue::DynamiteExtinguished;
+        }
+        MapValue::BigBomb1 | MapValue::BigBomb2 | MapValue::BigBomb3 => {
+          self.maps.level[cursor] = MapValue::BigBombExtinguished;
+        }
+        MapValue::SmallBomb1 | MapValue::SmallBomb2 | MapValue::SmallBomb3 => {
+          self.maps.level[cursor] = MapValue::SmallBombExtinguished;
+        }
+        MapValue::Napalm1 | MapValue::Napalm2 => {
+          self.maps.level[cursor] = MapValue::NapalmExtinguished;
+        }
+        _ => {}
+      }
+      self.update.update_cell(cursor);
+      true
+    } else if value.is_passable() {
+      self.maps.level[cursor] = MapValue::Smoke1;
+      self.maps.timer[cursor] = 3;
+      self.update.update_cell(cursor);
+      true
+    } else {
+      false
+    }
+  }
+
+  fn monsters_detect_players(&mut self) {
     let (players, monsters) = self.actors.split_at_mut(self.players.len());
     for monster in monsters {
       if monster.is_active {

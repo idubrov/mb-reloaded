@@ -65,13 +65,15 @@ pub fn main() -> Result<(), anyhow::Error> {
         // PlayerEntity::new(player3, settings.keys.keys[1], u32::from(settings.options.cash)),
         // PlayerEntity::new(player4, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];
-      for item in Equipment::all_equipment() {
-        if item != Equipment::Armor {
-          players[0].inventory[item] = 50;
-        } else {
-          players[0].inventory[item] = 1;
-        }
-      }
+      // for item in Equipment::all_equipment() {
+      //   if item != Equipment::Armor {
+      //     players[0].inventory[item] = 50;
+      //   } else {
+      //     players[0].inventory[item] = 1;
+      //   }
+      // }
+      players[0].inventory[Equipment::Extinguisher] = 100;
+      players[0].inventory[Equipment::AtomicBomb] = 100;
       // players[0].inventory[Equipment::SmallPickaxe] = 0;
       // players[0].inventory[Equipment::LargePickaxe] = 0;
       // players[0].inventory[Equipment::Drill] = 0;

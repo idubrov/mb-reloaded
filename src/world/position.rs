@@ -95,9 +95,16 @@ impl Cursor {
     Cursor { row, col }
   }
 
-  /// Return a new cursor that is offset from the current one by one step in a given direction
+  /// Return a new cursor that is offset from the current one by one step in a given direction.
+  /// If cannot go further in that direction, return the same value.
   pub fn to(self, dir: Direction) -> Cursor {
     let (row, col) = match dir {
+      // Check boundaries
+      Direction::Left if self.col == 0 => (self.row, self.col),
+      Direction::Right if self.col == MAP_COLS - 1 => (self.row, self.col),
+      Direction::Up if self.row == 0 => (self.row, self.col),
+      Direction::Down if self.row == MAP_ROWS - 1 => (self.row, self.col),
+
       Direction::Left => (self.row, self.col - 1),
       Direction::Right => (self.row, self.col + 1),
       Direction::Up => (self.row - 1, self.col),
