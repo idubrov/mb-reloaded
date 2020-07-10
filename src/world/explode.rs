@@ -171,7 +171,7 @@ impl World<'_> {
         self.maps.timer[cursor] = 0;
         self.update.update_cell(cursor);
       }
-      MapValue::MonsterExploding => {
+      MapValue::MonsterDying => {
         self.maps.level[cursor] = MapValue::MonsterSmoke1;
         self.maps.timer[cursor] = 3;
         self.update.update_cell(cursor);
@@ -192,7 +192,7 @@ impl World<'_> {
           }
         }
       }
-      MapValue::SlimeExplosion => {
+      MapValue::SlimeDying => {
         self.maps.level[cursor] = MapValue::SlimeSmoke1;
         self.maps.timer[cursor] = 3;
         self.update.update_cell(cursor);
@@ -308,8 +308,7 @@ impl World<'_> {
     let next = cursor.to(dir);
 
     // Either passable or another grenade flying in the same direction
-    if (self.maps.level[next].is_passable() || value == self.maps.level[next]) && !self.apply_damage_in_cell(cursor, 0)
-    {
+    if (self.maps.level[next].is_passable() || value == self.maps.level[next]) && !self.apply_damage_in_cell(next, 0) {
       self.maps.level[cursor] = MapValue::Passage;
       self.reapply_blood(cursor);
       self.update.update_cell(cursor);
@@ -611,7 +610,7 @@ impl Expansion for NapalmExpansion {
       | MapValue::Blood
       | MapValue::Biomass
       | MapValue::Explosion
-      | MapValue::MonsterExploding
+      | MapValue::MonsterDying
       | MapValue::MonsterSmoke1
       | MapValue::MonsterSmoke2
       | MapValue::Plastic

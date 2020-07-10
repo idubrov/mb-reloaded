@@ -39,6 +39,8 @@ pub struct World<'p> {
   pub update: UpdateQueue,
   /// Sound effects to play
   pub effects: SoundEffectsQueue,
+  /// Damage percentage (0..100)
+  pub bomb_damage: u8,
 }
 
 /// Request to play sound effect at a given frequency and location
@@ -67,7 +69,7 @@ impl SoundEffectsQueue {
 pub type EntityIndex = usize;
 
 impl<'p> World<'p> {
-  pub fn create(mut level: LevelMap, players: &'p mut [PlayerComponent], darkness: bool) -> Self {
+  pub fn create(mut level: LevelMap, players: &'p mut [PlayerComponent], darkness: bool, bomb_damage: u8) -> Self {
     let mut actors = spawn_actors(&mut level, players.len());
 
     // Initialize players health and drilling power
@@ -100,6 +102,7 @@ impl<'p> World<'p> {
       end_round_counter: 0,
       update: Default::default(),
       effects: Default::default(),
+      bomb_damage,
     }
   }
 
@@ -659,22 +662,52 @@ impl<'p> World<'p> {
   /// Re-apply blood / slime corpse to the map cell. Iterates through all of the actors and places
   /// blood / slime corpse at the cell if dead actors are found.
   fn reapply_blood(&mut self, cursor: Cursor) {
-    for actor in &self.actors {
-      if actor.is_dead && actor.pos.cursor() == cursor {
-        if actor.kind == ActorKind::Slime {
-          self.maps.level[cursor] = MapValue::SlimeCorpse;
-        } else {
-          self.maps.level[cursor] = MapValue::Blood;
-        }
-        break;
-      }
-    }
+    self.apply_damage_in_cell(cursor, 0);
   }
 
   /// Apply damage to all actors in the cell. Returns `true` if found live actor in that cell.
-  fn apply_damage_in_cell(&mut self, _cursor: Cursor, _dmg: u16) -> bool {
-    // FIXME: implement
-    false
+  fn apply_damage_in_cell(&mut self, cursor: Cursor, dmg: u16) -> bool {
+    let mut found_alive = false;
+    for idx in 0..self.actors.len() {
+      let actor = &self.actors[idx];
+      if actor.pos.cursor() != cursor {
+        continue;
+      }
+
+      let effective_dmg = match actor.kind {
+        // In single player, damage is always 100%
+        ActorKind::Player1 if self.is_single_player() => dmg,
+        ActorKind::Player1 | ActorKind::Player2 | ActorKind::Player3 | ActorKind::Player4 => {
+          dmg * u16::from(self.bomb_damage) / 100
+        }
+        _ => dmg,
+      };
+      // Get mutable
+      let actor = &mut self.actors[idx];
+      actor.health = actor.health.saturating_sub(effective_dmg);
+
+      if idx < self.players.len() {
+        self.update.update_player_health(idx);
+      }
+
+      found_alive |= !actor.is_dead;
+      if actor.health == 0 {
+        if dmg > 0 {
+          self.maps.level[cursor] = actor.kind.death_animation_value();
+          self.maps.timer[cursor] = 3;
+        } else {
+          self.maps.level[cursor] = actor.kind.blood_value();
+        }
+        if !actor.is_dead {
+          if idx < self.players.len() {
+            self.players[idx].stats.deaths += 1;
+          }
+          actor.is_dead = true;
+          self.effects.play(actor.kind.death_sound_effect(), 11000, cursor);
+        }
+      }
+    }
+    found_alive
   }
 
   fn open_doors(&mut self) {

@@ -66,7 +66,11 @@ pub fn main() -> Result<(), anyhow::Error> {
         // PlayerEntity::new(player4, settings.keys.keys[1], u32::from(settings.options.cash)),
       ];
       for item in Equipment::all_equipment() {
-        players[0].inventory[item] = 50;
+        if item != Equipment::Armor {
+          players[0].inventory[item] = 50;
+        } else {
+          players[0].inventory[item] = 1;
+        }
       }
       // players[0].inventory[Equipment::SmallPickaxe] = 0;
       // players[0].inventory[Equipment::LargePickaxe] = 0;

@@ -101,7 +101,7 @@ impl Application<'_> {
       }
     }
 
-    let mut world = World::create(level, players, darkness);
+    let mut world = World::create(level, players, darkness, settings.options.bomb_damage);
 
     // FIXME: start playing random music from level music
     sdl2::mixer::Music::halt();
@@ -333,7 +333,7 @@ impl Application<'_> {
     let pos_y = i32::from(pos.y);
 
     let value = level[cursor];
-    if value == MapValue::Explosion || value == MapValue::MonsterExploding {
+    if value == MapValue::Explosion || value == MapValue::MonsterDying {
       for dir in Direction::all() {
         let value = level[cursor.to(dir)];
         let glyph = if value.is_sand() || value == MapValue::LightGravel || value == MapValue::HeavyGravel {
@@ -350,7 +350,7 @@ impl Application<'_> {
       // FIXME: not sure when this one is triggered?
       for dir in Direction::all() {
         let value = level[cursor.to(dir)];
-        if value.is_passable() || value == MapValue::Explosion || value == MapValue::MonsterExploding {
+        if value.is_passable() || value == MapValue::Explosion || value == MapValue::MonsterDying {
           let (dx, dy) = border_offset(dir);
           self.glyphs.render(
             canvas,
@@ -440,6 +440,30 @@ impl Application<'_> {
         .render(canvas, pos_x + 50, 21, palette[5], &total_cash.to_string())?;
     }
 
+    // Players health
+    const HEALTH_COLOR: [usize; 4] = [2, 3, 4, 6];
+    const HEALTH_BAR_LEFT: [i32; 4] = [142, 304, 467, 630];
+    for player in 0..world.players.len() {
+      let actor = &world.actors[player];
+      let health_bars = if actor.health == 0 {
+        0
+      } else {
+        (u32::from(actor.health) * 50 + 1) / (2 * u32::from(actor.max_health)) + 1
+      };
+      let left = HEALTH_BAR_LEFT[player];
+      canvas.set_draw_color(Color::BLACK);
+      if health_bars < 25 {
+        canvas
+          .fill_rect(Rect::new(left, 2, 8, 26 - health_bars))
+          .map_err(SdlError)?;
+      }
+      if health_bars > 0 {
+        canvas.set_draw_color(palette[HEALTH_COLOR[player]]);
+        canvas
+          .fill_rect(Rect::new(left, 28 - (health_bars as i32), 8, health_bars))
+          .map_err(SdlError)?;
+      }
+    }
     Ok(())
   }
 

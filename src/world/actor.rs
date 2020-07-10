@@ -1,3 +1,5 @@
+use crate::effects::SoundEffect;
+use crate::world::map::MapValue;
 use crate::world::position::{Direction, Position};
 use crate::world::EntityIndex;
 
@@ -42,6 +44,27 @@ impl ActorKind {
       ActorKind::Slime => 2,
       ActorKind::Alien => 100,
       _ => unimplemented!(),
+    }
+  }
+
+  pub fn blood_value(self) -> MapValue {
+    match self {
+      ActorKind::Slime => MapValue::SlimeCorpse,
+      _ => MapValue::Blood,
+    }
+  }
+
+  pub fn death_animation_value(self) -> MapValue {
+    match self {
+      ActorKind::Slime => MapValue::SlimeDying,
+      _ => MapValue::MonsterDying,
+    }
+  }
+
+  pub fn death_sound_effect(self) -> SoundEffect {
+    match self {
+      ActorKind::Slime => SoundEffect::Urethan,
+      _ => SoundEffect::Aargh,
     }
   }
 }

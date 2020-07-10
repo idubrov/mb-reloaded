@@ -556,7 +556,7 @@ pub enum MapValue {
   SmallRadioRed = 0x82,
   BigRadioRed = 0x83,
   Explosion = 0x84,
-  MonsterExploding = 0x85,
+  MonsterDying = 0x85,
   MonsterSmoke1 = 0x86,
   MonsterSmoke2 = 0x87,
   /// Temporary value used in plastic and digger spreading algorithm
@@ -601,7 +601,7 @@ pub enum MapValue {
   BrickLightCracked = 0xAD,
   BrickHeavyCracked = 0xAE,
   SlimeCorpse = 0xAF,
-  SlimeExplosion = 0xB0,
+  SlimeDying = 0xB0,
   SlimeSmoke1 = 0xB1,
   SlimeSmoke2 = 0xB2,
   LifeItem = 0xB3,
