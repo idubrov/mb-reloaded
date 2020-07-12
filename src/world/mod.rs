@@ -695,7 +695,7 @@ impl<'p> World<'p> {
     } else if value == MapValue::Exit {
       unimplemented!("level exit");
     } else if value == MapValue::Medikit {
-      if self.actors[entity].is_active {
+      if entity < self.players.len() {
         self.actors[entity].health = self.actors[entity].max_health;
       }
 
