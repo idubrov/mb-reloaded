@@ -141,19 +141,19 @@ impl World<'_> {
       }
 
       MapValue::ExplosivePlasticBomb => {
-        self.expand_algo::<ExplodingPlasticExpansion>(cursor, total);
+        self.expand_algo(&ExplodingPlasticExpansion, cursor, total);
         self.effects.play(SoundEffect::Urethan, 11000, cursor);
       }
       MapValue::DiggerBomb => {
-        self.expand_algo::<DiggerExpansion>(cursor, total);
+        self.expand_algo(&DiggerExpansion, cursor, total);
         self.effects.play(SoundEffect::Explos5, 11000, cursor);
       }
       MapValue::Napalm1 | MapValue::Napalm2 | MapValue::NapalmExtinguished => {
-        self.expand_algo::<NapalmExpansion>(cursor, total);
+        self.expand_algo(&NapalmExpansion, cursor, total);
         self.effects.play(SoundEffect::Explos5, 11000, cursor);
       }
       MapValue::PlasticBomb => {
-        self.expand_algo::<PlasticExpansion>(cursor, total);
+        self.expand_algo(&PlasticExpansion, cursor, total);
         self.effects.play(SoundEffect::Urethan, 11000, cursor);
       }
       MapValue::Explosion => {
@@ -378,7 +378,7 @@ impl World<'_> {
   }
 
   /// Generic expansion algorithm used by plastic and digger
-  fn expand_algo<E: Expansion>(&mut self, cursor: Cursor, total: u32) {
+  fn expand_algo<E: Expansion>(&mut self, expansion: &E, cursor: Cursor, total: u32) {
     self.maps.level[cursor] = E::MARKER1;
 
     let mut expanded_count = 0;
@@ -394,12 +394,12 @@ impl World<'_> {
           let value = self.maps.level[cursor];
           if E::EXPLODE_ENTITIES && EXPLODABLE_ENTITY[value] {
             self.explode_entity(cursor, total);
-          } else if E::can_expand(value) {
+          } else if expansion.can_expand(value, cursor, dir) {
             self.maps.level[cursor] = E::MARKER2;
             self.update.update_cell(cursor);
             expanded_count += 1;
             spread = true;
-            E::expand(self, cursor);
+            expansion.expand(self, cursor);
           }
         }
       }
@@ -418,9 +418,28 @@ impl World<'_> {
 
     for cursor in Cursor::all() {
       if self.maps.level[cursor] == E::MARKER1 {
-        E::finalize(self, cursor, total);
+        expansion.finalize(self, cursor, total);
       }
     }
+  }
+
+  /// Fire a flamethrower
+  pub(super) fn activate_flamethrower(&mut self, mut cursor: Cursor, direction: Direction) {
+    self.effects.play(SoundEffect::Explos4, 11000, cursor);
+
+    // If next cell is passable, start flame there (otherwise, start in current spot)
+    // Note that if flame starts in current spot, it will destroy everything in that cell,
+    // including metal walls (original behavior)!
+    let value = self.maps.level[cursor.to(direction)];
+    if is_flame_passable(value) {
+      cursor = cursor.to(direction);
+    }
+
+    let expansion = FlamethrowerExpansion {
+      start: cursor,
+      direction,
+    };
+    self.expand_algo(&expansion, cursor, 0);
   }
 }
 
@@ -532,34 +551,37 @@ const DYNAMITE_PATTERN: [(i16, i16); 36] = [
 
 /// Common trait for all expandable bombs (plastic, digger, napalm)
 trait Expansion {
-  const MARKER1: MapValue = MapValue::TempMarker1;
-  const MARKER2: MapValue = MapValue::TempMarker2;
+  const MARKER1: MapValue;
+  const MARKER2: MapValue;
   const MAX_EXPANSION: u16;
   const EXPLODE_ENTITIES: bool;
 
-  /// Check if can expand in the given square type
-  fn can_expand(value: MapValue) -> bool;
+  /// Check if can expand in the given square type. `next` is the position we expand to.
+  /// `direction` is the direction of expansion.
+  fn can_expand(&self, value: MapValue, next: Cursor, direction: Direction) -> bool;
 
   /// Additional work required to do when we expand into a cell
-  fn expand(_world: &mut World, _cursor: Cursor) {
+  fn expand(&self, _world: &mut World, _cursor: Cursor) {
     // By default, we do nothing extra
   }
 
   /// Update cell with the final result of expansion
-  fn finalize(world: &mut World, cursor: Cursor, total: u32);
+  fn finalize(&self, world: &mut World, cursor: Cursor, total: u32);
 }
 
 struct ExplodingPlasticExpansion;
 
 impl Expansion for ExplodingPlasticExpansion {
+  const MARKER1: MapValue = MapValue::TempMarker1;
+  const MARKER2: MapValue = MapValue::TempMarker2;
   const MAX_EXPANSION: u16 = 50;
   const EXPLODE_ENTITIES: bool = false;
 
-  fn can_expand(value: MapValue) -> bool {
+  fn can_expand(&self, value: MapValue, _next: Cursor, _direction: Direction) -> bool {
     value.is_passable()
   }
 
-  fn finalize(world: &mut World, cursor: Cursor, _total: u32) {
+  fn finalize(&self, world: &mut World, cursor: Cursor, _total: u32) {
     place_plastic(world, cursor, true);
   }
 }
@@ -567,14 +589,16 @@ impl Expansion for ExplodingPlasticExpansion {
 struct PlasticExpansion;
 
 impl Expansion for PlasticExpansion {
+  const MARKER1: MapValue = MapValue::TempMarker1;
+  const MARKER2: MapValue = MapValue::TempMarker2;
   const MAX_EXPANSION: u16 = 45;
   const EXPLODE_ENTITIES: bool = false;
 
-  fn can_expand(value: MapValue) -> bool {
+  fn can_expand(&self, value: MapValue, _next: Cursor, _direction: Direction) -> bool {
     value.is_passable()
   }
 
-  fn finalize(world: &mut World, cursor: Cursor, _total: u32) {
+  fn finalize(&self, world: &mut World, cursor: Cursor, _total: u32) {
     place_plastic(world, cursor, false);
   }
 }
@@ -582,14 +606,16 @@ impl Expansion for PlasticExpansion {
 struct DiggerExpansion;
 
 impl Expansion for DiggerExpansion {
+  const MARKER1: MapValue = MapValue::TempMarker1;
+  const MARKER2: MapValue = MapValue::TempMarker2;
   const MAX_EXPANSION: u16 = 75;
   const EXPLODE_ENTITIES: bool = true;
 
-  fn can_expand(value: MapValue) -> bool {
+  fn can_expand(&self, value: MapValue, _next: Cursor, _direction: Direction) -> bool {
     value.is_stone() || value.is_stone_corner() || value == MapValue::Boulder
   }
 
-  fn finalize(world: &mut World, cursor: Cursor, total: u32) {
+  fn finalize(&self, world: &mut World, cursor: Cursor, total: u32) {
     world.explode_cell(cursor, 10, true, total);
   }
 }
@@ -602,7 +628,7 @@ impl Expansion for NapalmExpansion {
   const MAX_EXPANSION: u16 = 75;
   const EXPLODE_ENTITIES: bool = true;
 
-  fn can_expand(value: MapValue) -> bool {
+  fn can_expand(&self, value: MapValue, _next: Cursor, _direction: Direction) -> bool {
     match value {
       MapValue::Passage
       | MapValue::Smoke1
@@ -619,14 +645,63 @@ impl Expansion for NapalmExpansion {
     }
   }
 
-  fn expand(world: &mut World, cursor: Cursor) {
+  fn expand(&self, world: &mut World, cursor: Cursor) {
     // Burn everything in this cell
     world.maps.hits[cursor] = 0;
   }
 
-  fn finalize(world: &mut World, cursor: Cursor, total: u32) {
+  fn finalize(&self, world: &mut World, cursor: Cursor, total: u32) {
     world.maps.level[cursor] = MapValue::Passage;
     world.explode_cell(cursor, 220, true, total);
+  }
+}
+
+struct FlamethrowerExpansion {
+  /// Starting shooting direction
+  start: Cursor,
+  /// Flamethrower shooting direction
+  direction: Direction,
+}
+
+impl Expansion for FlamethrowerExpansion {
+  const MARKER1: MapValue = MapValue::NapalmTempMarker1;
+  const MARKER2: MapValue = MapValue::NapalmTempMarker2;
+  const MAX_EXPANSION: u16 = 30;
+  const EXPLODE_ENTITIES: bool = true;
+
+  fn can_expand(&self, value: MapValue, cursor: Cursor, direction: Direction) -> bool {
+    if !is_flame_passable(value) {
+      return false;
+    }
+
+    if self.direction == direction {
+      return true;
+    }
+    if self.direction == direction.reverse() {
+      return false;
+    }
+
+    let delta_col = if self.start.col > cursor.col {
+      self.start.col - cursor.col
+    } else {
+      cursor.col - self.start.col
+    };
+    let delta_row = if self.start.row > cursor.row {
+      self.start.row - cursor.row
+    } else {
+      cursor.row - self.start.row
+    };
+
+    // Expanding in direction perpendicular to player facing direction
+    match direction {
+      Direction::Up | Direction::Down => delta_row * 2 <= delta_col,
+      Direction::Left | Direction::Right => delta_col * 2 <= delta_row,
+    }
+  }
+
+  fn finalize(&self, world: &mut World, cursor: Cursor, total: u32) {
+    world.maps.level[cursor] = MapValue::Passage;
+    world.explode_cell(cursor, 34, true, total);
   }
 }
 
@@ -665,4 +740,13 @@ fn can_splatter_blood(value: MapValue) -> bool {
     || value == MapValue::Plastic
     || value == MapValue::ExplosivePlastic
     || value.is_brick_like()
+}
+
+/// Check if square is something that flame can pass through
+fn is_flame_passable(value: MapValue) -> bool {
+  value.is_passable()
+    || (value >= MapValue::Smoke1 && value <= MapValue::Smoke2)
+    || value == MapValue::Biomass
+    || (value >= MapValue::Explosion && value <= MapValue::MonsterSmoke2)
+    || value == MapValue::Plastic
 }

@@ -330,7 +330,7 @@ impl<'p> World<'p> {
     let cursor = self.actors[player].pos.cursor();
     match item {
       Equipment::Flamethrower => {
-        unimplemented!("flamethrower");
+        self.activate_flamethrower(cursor, self.actors[player].facing);
       }
       Equipment::Clone => {
         unimplemented!("activate clone");
@@ -419,16 +419,11 @@ impl<'p> World<'p> {
   fn monsters_detect_players(&mut self) {
     let (players, monsters) = self.actors.split_at_mut(self.players.len());
     for monster in monsters {
-      if monster.is_active {
+      if monster.is_active || monster.is_dead {
         // Monster is active already
         continue;
       }
       for player in players.iter() {
-        if monster.is_active {
-          // Monster is active already
-          continue;
-        }
-
         // 1. Closer than 20 in any direction (coordinate)
         // 2. On the same line & line of sight is not obstructed
         // 3. In forward field of view (90 degree fov) up to 7 cells distance
