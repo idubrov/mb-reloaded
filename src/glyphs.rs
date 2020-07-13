@@ -1,6 +1,6 @@
 use crate::error::ApplicationError::SdlError;
 use crate::images::TexturePalette;
-use crate::world::actor::ActorKind;
+use crate::world::actor::{ActorKind, Player};
 use crate::world::equipment::Equipment;
 use crate::world::map::MapValue;
 use crate::world::position::Direction;
@@ -100,14 +100,22 @@ impl Glyph {
           ActorKind::Grenadier => (160, 60),
           ActorKind::Slime => (160, 70),
           ActorKind::Alien => (0, 80),
-          ActorKind::Player1 if digging == Digging::Pickaxe => (160, 200),
-          ActorKind::Player2 if digging == Digging::Pickaxe => (0, 200),
-          ActorKind::Player3 if digging == Digging::Pickaxe => (0, 210),
-          ActorKind::Player4 if digging == Digging::Pickaxe => (160, 210),
-          ActorKind::Player1 => (160, 10),
-          ActorKind::Player2 => (160, 0),
-          ActorKind::Player3 => (160, 30),
-          ActorKind::Player4 => (160, 40),
+          ActorKind::Player(Player::Player1) | ActorKind::Clone(Player::Player1) if digging == Digging::Pickaxe => {
+            (160, 200)
+          }
+          ActorKind::Player(Player::Player2) | ActorKind::Clone(Player::Player2) if digging == Digging::Pickaxe => {
+            (0, 200)
+          }
+          ActorKind::Player(Player::Player3) | ActorKind::Clone(Player::Player3) if digging == Digging::Pickaxe => {
+            (0, 210)
+          }
+          ActorKind::Player(Player::Player4) | ActorKind::Clone(Player::Player4) if digging == Digging::Pickaxe => {
+            (160, 210)
+          }
+          ActorKind::Player(Player::Player1) | ActorKind::Clone(Player::Player1) => (160, 10),
+          ActorKind::Player(Player::Player2) | ActorKind::Clone(Player::Player2) => (160, 0),
+          ActorKind::Player(Player::Player3) | ActorKind::Clone(Player::Player3) => (160, 30),
+          ActorKind::Player(Player::Player4) | ActorKind::Clone(Player::Player4) => (160, 40),
         };
         let pos_x = pos_x + (dir as i16) * 40 + i16::from(anim) * 10;
         (pos_x, pos_y, pos_x + 9, pos_y + 9)

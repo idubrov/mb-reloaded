@@ -1,7 +1,7 @@
 use crate::effects::SoundEffect;
 use crate::glyphs::Digging;
 use crate::keys::Key;
-use crate::world::actor::{ActorComponent, ActorKind};
+use crate::world::actor::{ActorComponent, ActorKind, Player};
 use crate::world::equipment::Equipment;
 use crate::world::map::{
   FogMap, HitsMap, LevelMap, MapValue, TimerMap, CANNOT_PLACE_BOMB, CAN_EXTINGUISH, EXTINGUISHER_PASSABLE,
@@ -15,6 +15,7 @@ pub mod actor;
 pub mod equipment;
 mod explode;
 pub mod map;
+mod monster;
 pub mod player;
 pub mod position;
 
@@ -215,11 +216,13 @@ impl<'p> World<'p> {
       self.check_dead_players();
     }
 
+    // In original game, players 3 and 4 are checked on condition `% 5 == 3`.
+    // We, for simplicity, run in the same tick.
     if self.round_counter % 5 == 0 {
       self.monsters_detect_players();
     }
 
-    // FIXME: animate_monsters
+    self.animate_monsters();
 
     if self.round_counter % 20 == 0 && !self.is_single_player() && self.gold_remaining() == 0 {
       self.end_round_counter += 20;
@@ -258,6 +261,7 @@ impl<'p> World<'p> {
       let actor = &mut self.actors[player];
       if !actor.is_dead && actor.health < 1 {
         self.players[player].stats.deaths += 1;
+        actor.is_dead = true;
         self.effects.play(SoundEffect::Aargh, 11000, actor.pos.cursor());
         let cursor = actor.pos.cursor();
         self.maps.level[cursor] = MapValue::Blood;
@@ -420,7 +424,7 @@ impl<'p> World<'p> {
     let (players, monsters) = self.actors.split_at_mut(self.players.len());
     for monster in monsters {
       if monster.is_active || monster.is_dead {
-        // Monster is active already
+        // Monster is active already or dead
         continue;
       }
       for player in players.iter() {
@@ -435,6 +439,7 @@ impl<'p> World<'p> {
           self
             .effects
             .play(SoundEffect::Karjaisu, frequency, monster.pos.cursor());
+          break;
         }
       }
     }
@@ -636,7 +641,7 @@ impl<'p> World<'p> {
       self.update.update_cell(cursor);
       self.effects.play(SoundEffect::Picaxe, 11000, cursor);
     } else if value == MapValue::LifeItem {
-      if self.actors[entity].kind == ActorKind::Player1 {
+      if self.actors[entity].kind == ActorKind::Player(Player::Player1) {
         self.players[0].lives += 1;
         self.update.update_player_lives();
       }
@@ -666,11 +671,15 @@ impl<'p> World<'p> {
       }
 
       let mut rng = rand::thread_rng();
-      // FIXME: if teleport_count == 1
-      let mut exit = rng.gen_range(0, teleport_count - 1);
-      if exit >= entrance_idx {
-        exit += 1;
-      }
+      let mut exit = if teleport_count == 1 {
+        0
+      } else {
+        let mut exit = rng.gen_range(0, teleport_count - 1);
+        if exit >= entrance_idx {
+          exit += 1;
+        }
+        exit
+      };
 
       for cur in Cursor::all() {
         if self.maps.level[cur] == MapValue::Teleport {
@@ -718,10 +727,8 @@ impl<'p> World<'p> {
 
       let effective_dmg = match actor.kind {
         // In single player, damage is always 100%
-        ActorKind::Player1 if self.is_single_player() => dmg,
-        ActorKind::Player1 | ActorKind::Player2 | ActorKind::Player3 | ActorKind::Player4 => {
-          dmg * u16::from(self.bomb_damage) / 100
-        }
+        ActorKind::Player(_) if self.is_single_player() => dmg,
+        ActorKind::Player(_) => dmg * u16::from(self.bomb_damage) / 100,
         _ => dmg,
       };
       // Get mutable
@@ -946,11 +953,11 @@ fn spawn_actors(map: &mut LevelMap, players_count: usize) -> Vec<ActorComponent>
   // Initialize players
   for player in 0..players_count {
     let kind = match player {
-      0 => ActorKind::Player1,
-      1 => ActorKind::Player2,
-      2 => ActorKind::Player3,
-      3 => ActorKind::Player4,
-      _ => unimplemented!(),
+      0 => ActorKind::Player(Player::Player1),
+      1 => ActorKind::Player(Player::Player2),
+      2 => ActorKind::Player(Player::Player3),
+      3 => ActorKind::Player(Player::Player4),
+      _ => unreachable!(),
     };
     actors.push(ActorComponent {
       kind,

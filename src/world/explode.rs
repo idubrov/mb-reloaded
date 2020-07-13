@@ -681,16 +681,7 @@ impl Expansion for FlamethrowerExpansion {
       return false;
     }
 
-    let delta_col = if self.start.col > cursor.col {
-      self.start.col - cursor.col
-    } else {
-      cursor.col - self.start.col
-    };
-    let delta_row = if self.start.row > cursor.row {
-      self.start.row - cursor.row
-    } else {
-      cursor.row - self.start.row
-    };
+    let (delta_row, delta_col) = self.start.distance(cursor);
 
     // Expanding in direction perpendicular to player facing direction
     match direction {

@@ -19,7 +19,9 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RoundEnd {
+  /// Round end (all gold collected in multiplayer, all opponents are dead, etc)
   Round,
+  /// Game end (exited game, died with no more lives left)
   Game,
 }
 
@@ -158,7 +160,8 @@ impl Application<'_> {
         if world.update.players_info {
           self.render_players_info(canvas, &world)?;
         }
-        // Take all the updates
+
+        // Go through each update and render it
         for update in &world.update.queue {
           match *update {
             Update::Actor(actor, digging) => {
@@ -180,7 +183,6 @@ impl Application<'_> {
           }
         }
 
-        // FIXME: update round time
         world.update.queue.clear();
         Ok(())
       })?;

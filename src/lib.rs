@@ -72,12 +72,14 @@ pub fn main() -> Result<(), anyhow::Error> {
       //     players[0].inventory[item] = 1;
       //   }
       // }
-      players[0].inventory[Equipment::Flamethrower] = 100;
-      players[0].inventory[Equipment::Napalm] = 100;
-      players[0].inventory[Equipment::AtomicBomb] = 100;
-      players[0].inventory[Equipment::Armor] = 100;
+      players[0].inventory[Equipment::SmallBomb] = 100;
+      players[1].inventory[Equipment::SmallBomb] = 100;
+      //players[0].inventory[Equipment::Napalm] = 100;
+      //players[0].inventory[Equipment::AtomicBomb] = 100;
+      //players[0].inventory[Equipment::Armor] = 100;
       //players[0].inventory[Equipment::LargePickaxe] = 0;
       players[0].inventory[Equipment::Drill] = 100;
+      players[1].inventory[Equipment::Drill] = 100;
       app.play_round(&mut ctx, &mut players, 0, &level, &settings)?;
     } else {
       app.main_menu(&mut ctx)?;

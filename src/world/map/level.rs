@@ -782,6 +782,44 @@ impl MapValue {
       _ => 0,
     }
   }
+
+  /// Check if map value is treasure item
+  pub fn is_treasure(self) -> bool {
+    self.gold_value() > 0
+  }
+
+  pub fn is_bomb(self) -> bool {
+    match self {
+      MapValue::SmallBomb1
+      | MapValue::SmallBomb2
+      | MapValue::SmallBomb3
+      | MapValue::BigBomb1
+      | MapValue::BigBomb2
+      | MapValue::BigBomb3
+      | MapValue::Dynamite1
+      | MapValue::Dynamite2
+      | MapValue::Dynamite3
+      | MapValue::Napalm1
+      | MapValue::Napalm2
+      | MapValue::SmallCrucifixBomb
+      | MapValue::LargeCrucifixBomb
+      | MapValue::PlasticBomb
+      | MapValue::ExplosivePlastic
+      | MapValue::ExplosivePlasticBomb
+      | MapValue::Atomic1
+      | MapValue::Atomic2
+      | MapValue::Atomic3
+      | MapValue::DiggerBomb
+      | MapValue::Barrel
+      | MapValue::GrenadeFlyingRight
+      | MapValue::GrenadeFlyingLeft
+      | MapValue::GrenadeFlyingDown
+      | MapValue::GrenadeFlyingUp
+      | MapValue::MetalWallPlaced
+      | MapValue::JumpingBomb => true,
+      _ => false,
+    }
+  }
 }
 
 /// Apply random offset to the coordinate

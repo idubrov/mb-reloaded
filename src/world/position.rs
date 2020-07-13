@@ -1,7 +1,7 @@
 use crate::world::map::{MAP_COLS, MAP_ROWS};
 
 /// Facing direction
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Direction {
   Right,
@@ -84,7 +84,7 @@ impl From<Position> for Cursor {
 }
 
 /// Map cell coordinates
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cursor {
   pub row: u16,
   pub col: u16,
@@ -122,6 +122,21 @@ impl Cursor {
     } else {
       None
     }
+  }
+
+  /// Find absolute distance in both directions to a given target
+  pub fn distance(self, other: Cursor) -> (u16, u16) {
+    let delta_col = if self.col > other.col {
+      self.col - other.col
+    } else {
+      other.col - self.col
+    };
+    let delta_row = if self.row > other.row {
+      self.row - other.row
+    } else {
+      other.row - self.row
+    };
+    (delta_row, delta_col)
   }
 
   /// Iterate through all map cells (including the border ones)
