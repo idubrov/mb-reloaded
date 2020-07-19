@@ -3,7 +3,7 @@ use crate::bitmap::MapValueSet;
 use crate::effects::SoundEffect;
 use crate::world::map::{MapValue, MAP_ROWS};
 use crate::world::position::{Cursor, Direction};
-use crate::world::{SplatterKind, World};
+use crate::world::{grenade_direction, SplatterKind, World};
 use rand::prelude::*;
 
 impl World<'_> {
@@ -440,16 +440,6 @@ impl World<'_> {
       direction,
     };
     self.expand_algo(&expansion, cursor, 0);
-  }
-}
-
-fn grenade_direction(value: MapValue) -> Direction {
-  match value {
-    MapValue::GrenadeFlyingRight => Direction::Right,
-    MapValue::GrenadeFlyingLeft => Direction::Left,
-    MapValue::GrenadeFlyingDown => Direction::Down,
-    MapValue::GrenadeFlyingUp => Direction::Up,
-    _ => unreachable!(),
   }
 }
 

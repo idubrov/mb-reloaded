@@ -1,7 +1,7 @@
 use crate::world::actor::{ActorComponent, ActorKind, Player};
 use crate::world::map::{LevelMap, MapValue};
 use crate::world::position::{Cursor, Direction};
-use crate::world::{EntityIndex, World};
+use crate::world::{grenade_value, EntityIndex, World};
 use rand::prelude::*;
 
 impl World<'_> {
@@ -40,7 +40,7 @@ impl World<'_> {
 
               if let ActorKind::Clone(_) = monster_kind {
                 // Clones throw grenades only when actually locked on somebody
-                self.grenadier_think(actor_idx);
+                self.grenadier_maybe_toss_grenade(actor_idx);
               }
             }
             _ if remaining_gold > 0 => {
@@ -56,7 +56,7 @@ impl World<'_> {
 
           // Grenadiers always throw grenades (unless avoiding bombs)
           if monster_kind == ActorKind::Grenadier {
-            self.grenadier_think(actor_idx);
+            self.grenadier_maybe_toss_grenade(actor_idx);
           }
         }
       }
@@ -93,9 +93,55 @@ impl World<'_> {
     }
   }
 
-  /// Throw grenades
-  fn grenadier_think(&mut self, _monster: EntityIndex) {
-    unimplemented!()
+  /// Throw grenades if not blocked by map or by other monster
+  fn grenadier_maybe_toss_grenade(&mut self, actor: EntityIndex) {
+    // Minimum distance to obstacle when grenadier still wants to throw a grenade
+    const MIN_OBSTACLE_DISTANCE: i32 = 4;
+
+    let actor = &self.actors[actor];
+    if self.check_obstacle_distance(actor) > MIN_OBSTACLE_DISTANCE {
+      let cursor = actor.pos.cursor();
+      for player in &self.actors[..self.players.len()] {
+        let player_cursor = player.pos.cursor();
+        let same_row = player_cursor.row == cursor.row;
+        let same_col = player_cursor.col == cursor.col;
+        if same_row != same_col {
+          self.maps.level[cursor] = grenade_value(actor.facing);
+          self.maps.timer[cursor] = 1;
+        }
+      }
+    }
+  }
+
+  fn check_obstacle_distance(&self, actor: &ActorComponent) -> i32 {
+    const MAX_SCAN_DISTANCE: i32 = 10;
+
+    let mut cursor = actor.pos.cursor();
+    for distance in 0..MAX_SCAN_DISTANCE {
+      cursor = cursor.to(actor.facing);
+      // In original game, map square next to grenadier would be considered "distance = 0"
+      // However, monster sitting in the next square will be "distance = 1".
+      // For simplicity, we treat both the same way
+      if !self.maps.level[cursor].is_passable() {
+        return distance;
+      }
+
+      // Some monster is blocking grenade throw
+      if self.actors[self.players.len()..]
+        .iter()
+        .any(|actor| actor.pos.cursor() == cursor)
+      {
+        return distance;
+      }
+
+      match actor.kind {
+        ActorKind::Clone(player) if self.actors[player as usize].pos.cursor() == cursor => {
+          return distance;
+        }
+        _ => {}
+      }
+    }
+    MAX_SCAN_DISTANCE
   }
 }
 

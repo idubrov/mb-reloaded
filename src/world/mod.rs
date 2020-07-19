@@ -866,12 +866,7 @@ fn item_placement_level(item: Equipment, direction: Direction, player: usize) ->
       3 => MapValue::BigRadioYellow,
       _ => unreachable!(),
     },
-    Equipment::Grenade => match direction {
-      Direction::Left => MapValue::GrenadeFlyingLeft,
-      Direction::Right => MapValue::GrenadeFlyingRight,
-      Direction::Up => MapValue::GrenadeFlyingUp,
-      Direction::Down => MapValue::GrenadeFlyingDown,
-    },
+    Equipment::Grenade => grenade_value(direction),
     Equipment::Mine => MapValue::Mine,
     Equipment::Napalm => MapValue::Napalm1,
     Equipment::Barrel => MapValue::Barrel,
@@ -1139,5 +1134,26 @@ fn check_fuse_went_out(value: MapValue) -> Option<MapValue> {
     Some(replacement)
   } else {
     None
+  }
+}
+
+/// Get grenade flying direction based on grenade value
+fn grenade_direction(value: MapValue) -> Direction {
+  match value {
+    MapValue::GrenadeFlyingRight => Direction::Right,
+    MapValue::GrenadeFlyingLeft => Direction::Left,
+    MapValue::GrenadeFlyingDown => Direction::Down,
+    MapValue::GrenadeFlyingUp => Direction::Up,
+    _ => unreachable!(),
+  }
+}
+
+/// Get grenade value based on the direction of toss
+fn grenade_value(direction: Direction) -> MapValue {
+  match direction {
+    Direction::Left => MapValue::GrenadeFlyingLeft,
+    Direction::Right => MapValue::GrenadeFlyingRight,
+    Direction::Up => MapValue::GrenadeFlyingUp,
+    Direction::Down => MapValue::GrenadeFlyingDown,
   }
 }

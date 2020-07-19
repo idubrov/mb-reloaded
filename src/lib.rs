@@ -44,7 +44,7 @@ pub fn main() -> Result<(), anyhow::Error> {
       sdl2::mixer::allocate_channels(16);
       // sdl2::mixer::Channel(0).play(&audio, 10);
 
-      let data = std::fs::read("../minebomb/AAA.MNE")?;
+      let data = std::fs::read("../minebomb/AA1.MNE")?;
       let map = LevelMap::from_file_map(data)?;
       let level = LevelInfo::File {
         name: "CARAMBA".into(),
