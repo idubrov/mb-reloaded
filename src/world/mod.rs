@@ -337,7 +337,7 @@ impl<'p> World<'p> {
         self.activate_flamethrower(cursor, self.actors[player].facing);
       }
       Equipment::Clone => {
-        unimplemented!("activate clone");
+        self.activate_clone(player);
       }
       Equipment::Extinguisher => {
         self.activate_extinguisher(cursor, self.actors[player].facing);
@@ -521,7 +521,8 @@ impl<'p> World<'p> {
       let gold_value = value.gold_value();
 
       let actor = &self.actors[entity];
-      if let Some(player) = actor.owner {
+      if let ActorKind::Clone(player) = actor.kind {
+        let player = player as usize;
         self.actors[player].drilling += drill_value;
         self.actors[player].accumulated_cash += gold_value;
       }
@@ -843,6 +844,40 @@ impl<'p> World<'p> {
   /// Reveal map based on player vision
   fn reveal_view(&mut self) {
     unimplemented!("reveal view")
+  }
+
+  fn activate_clone(&mut self, player_idx: EntityIndex) {
+    let kind = match player_idx {
+      0 => ActorKind::Clone(Player::Player1),
+      1 => ActorKind::Clone(Player::Player2),
+      2 => ActorKind::Clone(Player::Player3),
+      3 => ActorKind::Clone(Player::Player4),
+      _ => unreachable!(),
+    };
+
+    let player = &self.actors[player_idx];
+    let mut clone = ActorComponent {
+      kind,
+      facing: Direction::Right,
+      moving: true,
+      max_health: 100,
+      health: 100,
+      pos: player.pos.cursor().position(),
+      drilling: player.drilling,
+      animation: 1,
+      is_dead: false,
+      is_active: true,
+      accumulated_cash: 0,
+      super_drill_count: 0,
+    };
+
+    // Don't inherit super drill
+    if player.super_drill_count > 0 {
+      clone.drilling -= 300;
+    }
+
+    // Original game places in front of the list, but it's easier to push back for us
+    self.actors.push(clone);
   }
 }
 

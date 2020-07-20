@@ -1,7 +1,6 @@
 use crate::effects::SoundEffect;
 use crate::world::map::{LevelMap, MapValue};
 use crate::world::position::{Cursor, Direction, Position};
-use crate::world::EntityIndex;
 use rand::prelude::*;
 use std::cmp::Ordering;
 
@@ -110,7 +109,6 @@ pub struct ActorComponent {
   pub is_dead: bool,
   /// If monster is active
   pub is_active: bool,
-  pub owner: Option<EntityIndex>,
   /// Cash accumulated in the current map; will be lost on death.
   pub accumulated_cash: u32,
   /// Countdown of player activated acceleration bonus
@@ -130,7 +128,6 @@ impl Default for ActorComponent {
       animation: 0,
       is_dead: false,
       is_active: false,
-      owner: None,
       accumulated_cash: 0,
       super_drill_count: 0,
     }
