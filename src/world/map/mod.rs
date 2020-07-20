@@ -5,7 +5,9 @@ pub const MAP_ROWS: u16 = 45;
 pub const MAP_COLS: u16 = 64;
 
 use crate::world::position::Cursor;
-pub use bitmaps::{CANNOT_PLACE_BOMB, CAN_EXTINGUISH, DIRT_BORDER_BITMAP, EXTINGUISHER_PASSABLE, PUSHABLE_BITMAP};
+pub use bitmaps::{
+  CANNOT_PLACE_BOMB, CAN_EXTINGUISH, DIRT_BORDER_BITMAP, DOOR_EXPLODES_ENTITY, EXTINGUISHER_PASSABLE, PUSHABLE_BITMAP,
+};
 pub use level::{InvalidMap, LevelInfo, LevelMap, MapValue};
 use rand::prelude::*;
 use ref_cast::RefCast;
@@ -116,18 +118,21 @@ fn hits(value: MapValue) -> i32 {
 pub type FogMap = Map<FogValue>;
 
 #[derive(Clone, Copy)]
-#[repr(transparent)]
 pub struct FogValue {
-  value: u8,
+  pub dark: bool,
+  pub open_door: bool,
 }
 
 impl FogValue {
   fn hidden() -> FogValue {
-    FogValue { value: 1 }
+    FogValue {
+      dark: true,
+      open_door: false,
+    }
   }
 
   pub fn reveal(&mut self) {
-    self.value &= 0xfe;
+    self.dark = false;
   }
 }
 

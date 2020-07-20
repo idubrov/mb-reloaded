@@ -4,8 +4,8 @@ use crate::keys::Key;
 use crate::world::actor::{ActorComponent, ActorKind, Player};
 use crate::world::equipment::Equipment;
 use crate::world::map::{
-  FogMap, HitsMap, LevelMap, MapValue, TimerMap, CANNOT_PLACE_BOMB, CAN_EXTINGUISH, EXTINGUISHER_PASSABLE,
-  PUSHABLE_BITMAP,
+  FogMap, HitsMap, LevelMap, MapValue, TimerMap, CANNOT_PLACE_BOMB, CAN_EXTINGUISH, DOOR_EXPLODES_ENTITY,
+  EXTINGUISHER_PASSABLE, PUSHABLE_BITMAP,
 };
 use crate::world::player::PlayerComponent;
 use crate::world::position::{Cursor, Direction, Position};
@@ -760,12 +760,45 @@ impl<'p> World<'p> {
     found_alive
   }
 
+  /// Open all doors on the map
   fn open_doors(&mut self) {
-    unimplemented!()
+    for cursor in Cursor::all() {
+      match self.maps.level[cursor] {
+        MapValue::ButtonOff => {
+          self.maps.timer[cursor] = 40;
+          self.maps.level[cursor] = MapValue::ButtonOn;
+        }
+        MapValue::Door => {
+          self.maps.level[cursor] = MapValue::Passage;
+          self.maps.fog[cursor].open_door = true;
+        }
+        _ => continue,
+      }
+
+      if !self.maps.darkness || !self.maps.fog[cursor].dark {
+        self.update.update_cell(cursor);
+      }
+    }
   }
 
+  /// Close all doors on the map; explodes entities placed in an open door.
   fn close_doors(&mut self) {
-    unimplemented!()
+    for cursor in Cursor::all() {
+      if self.maps.level[cursor] == MapValue::ButtonOn {
+        self.maps.timer[cursor] = 40;
+        self.maps.level[cursor] = MapValue::ButtonOff;
+      } else if self.maps.fog[cursor].open_door {
+        if DOOR_EXPLODES_ENTITY[self.maps.level[cursor]] {
+          self.explode_entity(cursor, 0);
+        }
+        self.maps.level[cursor] = MapValue::Door;
+      } else {
+        continue;
+      }
+      if !self.maps.darkness || !self.maps.fog[cursor].dark {
+        self.update.update_cell(cursor);
+      }
+    }
   }
 
   /// Animate actor under a given index. Updates coordinates, animation phase.

@@ -73,7 +73,8 @@ pub fn main() -> Result<(), anyhow::Error> {
       //   }
       // }
       players[0].inventory[Equipment::Clone] = 100;
-      players[0].inventory[Equipment::Flamethrower] = 100;
+      players[0].inventory[Equipment::SmallBomb] = 100;
+      players[0].inventory[Equipment::Teleport] = 100;
       //players[1].inventory[Equipment::SmallBomb] = 100;
       //players[0].inventory[Equipment::Napalm] = 100;
       //players[0].inventory[Equipment::AtomicBomb] = 100;
