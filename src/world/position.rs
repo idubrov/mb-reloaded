@@ -124,6 +124,13 @@ impl Cursor {
     }
   }
 
+  /// Offset given cursor by given delta; returns `None` if hits border of the map or outside of the map.
+  pub fn offset_clamp(self, delta_row: i16, delta_col: i16) -> Cursor {
+    let row = ((self.row as i16) + delta_row).max(0).min((MAP_ROWS - 1) as i16);
+    let col = ((self.col as i16) + delta_col).max(0).min((MAP_COLS - 1) as i16);
+    Cursor::new(row as u16, col as u16)
+  }
+
   /// Find absolute distance in both directions to a given target
   pub fn distance(self, other: Cursor) -> (u16, u16) {
     let delta_col = if self.col > other.col {
@@ -151,6 +158,11 @@ impl Cursor {
     (1..MAP_ROWS - 1)
       .flat_map(|row| (1..MAP_COLS - 1).map(move |col| (row, col)))
       .map(|(row, col)| Cursor::new(row, col))
+  }
+
+  /// Check if this cursor is pointing at a border cell
+  pub fn is_on_border(self) -> bool {
+    self.row == 0 || self.row == (MAP_ROWS - 1) || self.col == 0 || self.col == (MAP_COLS - 1)
   }
 
   pub fn position(self) -> Position {

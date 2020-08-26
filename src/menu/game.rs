@@ -507,6 +507,7 @@ impl Application<'_> {
     self
       .glyphs
       .render(canvas, i32::from(pos.x) - 5, i32::from(pos.y) - 5, glyph)?;
+    // FIXME: move to world?
     maps.fog[cursor].reveal();
     Ok(())
   }

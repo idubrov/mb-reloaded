@@ -5,7 +5,7 @@ use crate::world::actor::{ActorComponent, ActorKind, Player};
 use crate::world::equipment::Equipment;
 use crate::world::map::{
   FogMap, HitsMap, LevelMap, MapValue, TimerMap, CANNOT_PLACE_BOMB, CAN_EXTINGUISH, DOOR_EXPLODES_ENTITY,
-  EXTINGUISHER_PASSABLE, PUSHABLE_BITMAP,
+  EXTINGUISHER_PASSABLE, PUSHABLE_BITMAP, SEE_THROUGH,
 };
 use crate::world::player::PlayerComponent;
 use crate::world::position::{Cursor, Direction, Position};
@@ -453,7 +453,7 @@ impl<'p> World<'p> {
       if let Some(player) = self.players.get_mut(entity) {
         player.stats.meters_ran += 1;
         if self.maps.darkness {
-          self.reveal_view();
+          self.reveal_view(entity);
         }
       }
     }
@@ -875,8 +875,72 @@ impl<'p> World<'p> {
   }
 
   /// Reveal map based on player vision
-  fn reveal_view(&mut self) {
-    unimplemented!("reveal view")
+  fn reveal_view(&mut self, player_idx: EntityIndex) {
+    let mut cursor = self.actors[player_idx].pos.cursor();
+    let facing = self.actors[player_idx].facing;
+
+    let (mut view_at, offset_dir) = match facing {
+      Direction::Left => (cursor.offset_clamp(-20, -20), Direction::Down),
+      Direction::Up => (cursor.offset_clamp(-20, -20), Direction::Right),
+      Direction::Right => (cursor.offset_clamp(-20, 20), Direction::Down),
+      Direction::Down => (cursor.offset_clamp(20, -20), Direction::Right),
+    };
+
+    // Note: in original game, we do 40 iterations, which makes it unsymmetric. Here we do 41 instead.
+    for _ in 0..=40 {
+      self.cast_view_ray(cursor, view_at);
+      view_at = view_at.to(offset_dir);
+    }
+
+    while !cursor.is_on_border() && self.maps.level[cursor].is_passable() {
+      for dir in Direction::all() {
+        let tgt = cursor.to(dir);
+        if self.maps.fog[tgt].dark {
+          self.update.update_cell(tgt);
+        }
+      }
+
+      cursor = cursor.to(facing);
+    }
+  }
+
+  /// Cast a view ray from the `cursor` position to `target` position to reveal which cells are
+  /// visible from a `cursor` position.
+  fn cast_view_ray(&mut self, cursor: Cursor, target: Cursor) {
+    // Original game used floating point arithmetics to draw a line, but we use Bresenham's algorithm.
+    // Here `delta_x` is the larger difference (delta row or delta column) and `delta_y` is the smaller.
+    // (Bresenham's algorithm is typically formulated for one quadrant, where dx > dy).
+    let delta = cursor.distance(target);
+    // If main loop variable (`x`) is tracking rows (goes in a vertical direction) vs columns (horizontal).
+    let vertical = delta.0 > delta.1;
+    let (delta_x, delta_y) = if vertical {
+      (delta.0, delta.1)
+    } else {
+      (delta.1, delta.0)
+    };
+
+    let mut slope_error = i32::from(2 * delta_y) - i32::from(delta_x);
+    let mut y = 0;
+    for x in 0..=delta_x {
+      let (row_delta, col_delta) = if vertical { (x, y) } else { (y, x) };
+      let row = towards(cursor.row, target.row, row_delta);
+      let col = towards(cursor.col, target.col, col_delta);
+      let current = Cursor::new(row, col);
+
+      if self.maps.fog[current].dark {
+        self.update.update_cell(current);
+      }
+      if !SEE_THROUGH[self.maps.level[current]] {
+        break;
+      }
+
+      // Bresenham's algorithm
+      if slope_error > 0 {
+        y += 1;
+        slope_error -= i32::from(2 * delta_x);
+      }
+      slope_error += i32::from(2 * delta_y);
+    }
   }
 
   fn activate_clone(&mut self, player_idx: EntityIndex) {
@@ -1223,5 +1287,14 @@ fn grenade_value(direction: Direction) -> MapValue {
     Direction::Right => MapValue::GrenadeFlyingRight,
     Direction::Up => MapValue::GrenadeFlyingUp,
     Direction::Down => MapValue::GrenadeFlyingDown,
+  }
+}
+
+/// Move `delta` points from `from` value towards `to` value
+fn towards(from: u16, to: u16, delta: u16) -> u16 {
+  if from < to {
+    from + delta
+  } else {
+    from - delta
   }
 }

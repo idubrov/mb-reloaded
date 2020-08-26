@@ -7,6 +7,7 @@ pub const MAP_COLS: u16 = 64;
 use crate::world::position::Cursor;
 pub use bitmaps::{
   CANNOT_PLACE_BOMB, CAN_EXTINGUISH, DIRT_BORDER_BITMAP, DOOR_EXPLODES_ENTITY, EXTINGUISHER_PASSABLE, PUSHABLE_BITMAP,
+  SEE_THROUGH,
 };
 pub use level::{InvalidMap, LevelInfo, LevelMap, MapValue};
 use rand::prelude::*;
