@@ -12,7 +12,7 @@ pub struct PlayerComponent {
   pub roster_index: u8,
   /// Player keybindings
   pub keys: KeyBindings,
-  /// Cash that will not be lost on death. All accumulated cash is moved into this bucked if
+  /// Cash that will not be lost on death. All accumulated cash is moved into this bucket if
   /// player survives level.
   pub cash: u32,
   /// Player inventory

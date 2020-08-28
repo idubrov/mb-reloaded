@@ -230,6 +230,61 @@ impl<'p> World<'p> {
     self.round_counter += 1;
   }
 
+  /// Apply end of round rules (apply interest, commit collected cash, etc)
+  pub fn end_of_round(&mut self) {
+    if self.is_single_player() {
+      self.players[0].cash += self.actors[0].accumulated_cash;
+    } else {
+      self.distribute_money();
+    }
+
+    for (idx, player) in self.players.iter_mut().enumerate() {
+      player.stats.total_money += self.actors[idx].accumulated_cash;
+      self.actors[idx].accumulated_cash = 0;
+      player.stats.rounds += 1;
+    }
+  }
+
+  /// Distribute money in a multiplayer mode
+  fn distribute_money(&mut self) {
+    // Apply interest
+    for player in self.players.iter_mut() {
+      // add 7% of cash
+      player.cash = (107 * player.cash + 50) / 100;
+    }
+
+    let mut lost_money: u32 = self.actors[0..self.players.len()]
+      .iter()
+      .filter(|actor| actor.is_dead)
+      .map(|actor| actor.accumulated_cash)
+      .sum();
+    let alive_players = self.actors[0..self.players.len()]
+      .iter()
+      .filter(|actor| !actor.is_dead)
+      .count();
+    if alive_players == 1 {
+      // If only one player is alive, take 40% of the remaining money on the level
+      lost_money += self.gold_remaining() * 2 / 5;
+    }
+
+    let total_players = self.players.len();
+    for (idx, player) in self.players.iter_mut().enumerate() {
+      let actor = &mut self.actors[idx];
+      if !actor.is_dead {
+        player.cash += lost_money / (alive_players as u32) + actor.accumulated_cash;
+
+        if alive_players != total_players {
+          // FIXME: need to store "rounds won in a game" as well?
+          player.stats.rounds_wins += 1;
+        }
+      }
+
+      if player.cash < 100 {
+        player.cash += 150;
+      }
+    }
+  }
+
   /// Check end-of-round condition
   pub fn is_end_of_round(&self) -> bool {
     self.end_round_counter > 100

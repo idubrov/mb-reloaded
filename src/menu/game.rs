@@ -213,6 +213,10 @@ impl Application<'_> {
     };
     ctx.animate(Animation::FadeDown, 7)?;
 
+    if exit_reason == RoundEnd::Round {
+      world.end_of_round();
+    }
+
     Ok(exit_reason)
   }
 

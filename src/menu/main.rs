@@ -55,7 +55,7 @@ impl Application<'_> {
     Ok(())
   }
 
-  /// Returns `true` if exit was selected
+  /// Returns when exiting the game
   fn main_menu_loop(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
     let mut settings = GameSettings::load(ctx.game_dir());
     let mut selected_item = SelectedMenu::NewGame;
