@@ -2,6 +2,7 @@ use crate::context::{Animation, ApplicationContext};
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::{AnimationPhase, Border, Digging, Glyph};
 use crate::keys::Key;
+use crate::menu::shop::ShopResult;
 use crate::settings::GameSettings;
 use crate::world::actor::ActorComponent;
 use crate::world::map::{LevelInfo, LevelMap, MapValue, DIRT_BORDER_BITMAP, MAP_COLS, MAP_ROWS};
@@ -23,12 +24,15 @@ pub enum RoundEnd {
   Round,
   /// Game end (exited game, died with no more lives left)
   Game,
+  /// Failed round: playing single player and died
+  Failed,
 }
 
 impl Application<'_> {
   /// Play game, starting from player selection
   pub fn play_game(&self, ctx: &mut ApplicationContext, settings: &GameSettings) -> Result<(), anyhow::Error> {
     sdl2::mixer::Music::halt();
+    let single_player = settings.options.players == 1;
     let selected = self.players_select_menu(ctx, settings.options.players)?;
     if selected.is_empty() {
       return Ok(());
@@ -43,7 +47,14 @@ impl Application<'_> {
       ));
     }
 
-    for round in 0..settings.options.rounds {
+    if single_player {
+      // In single player, we start with 250
+      players[0].cash = 250;
+      players[0].lives = 3;
+    }
+
+    let mut round = 0;
+    while round < settings.options.rounds {
       ctx.with_render_context(|canvas| {
         canvas.set_draw_color(Color::BLACK);
         canvas.clear();
@@ -54,19 +65,46 @@ impl Application<'_> {
         Ok(())
       })?;
 
-      // Generate level if necessary
-      // FIXME: for single player, load fixed set of levels
+      // Select a level to play
       ctx.animate(Animation::FadeUp, 7)?;
-      let level = settings
-        .levels
-        .get(usize::from(round))
-        .map(Rc::as_ref)
-        .unwrap_or(&LevelInfo::Random);
+      let slot;
+      let level = if settings.options.players == 1 {
+        let filename = format!("LEVEL{}.MNL", round);
+        let path = ctx.game_dir().join(filename);
+        let data = std::fs::read(path)?;
+        let map = LevelMap::from_file_map(data)?;
+        slot = LevelInfo::File {
+          name: format!("LEVEL{}", round),
+          map,
+        };
+        &slot
+      } else {
+        settings
+          .levels
+          .get(usize::from(round))
+          .map(Rc::as_ref)
+          .unwrap_or(&LevelInfo::Random)
+      };
       ctx.animate(Animation::FadeDown, 7)?;
-
-      if self.play_round(ctx, &mut players, round, level, settings)? == RoundEnd::Game {
-        break;
+      let result = self.play_round(ctx, &mut players, round, level, settings)?;
+      match result {
+        RoundEnd::Game => break,
+        RoundEnd::Failed if players[0].lives == 0 => {
+          // End of game: out of lives!
+          break;
+        }
+        RoundEnd::Failed => {
+          // Keep playing the same round!
+        }
+        RoundEnd::Round => {
+          round += 1;
+        }
       }
+    }
+
+    if single_player {
+      // FIXME: show win / lose screen
+      unimplemented!();
     }
     Ok(())
   }
@@ -79,7 +117,10 @@ impl Application<'_> {
     level: &LevelInfo,
     settings: &GameSettings,
   ) -> Result<RoundEnd, anyhow::Error> {
-    let darkness = settings.options.darkness || players.len() == 1;
+    // Note: in original game, single player is always played dark. However, in this
+    // re-implementation I'm relaxing this as I never had patience to play through all 15 levels
+    // with darkness 😅
+    let darkness = settings.options.darkness; // || players.len() == 1;
     let level = match level {
       LevelInfo::Random => {
         let mut level = LevelMap::random_map(settings.options.treasures);
@@ -99,7 +140,9 @@ impl Application<'_> {
         let left = it.next();
         let remaining = settings.options.rounds - round;
         let preview_map = if darkness { None } else { Some(&level) };
-        self.shop(ctx, remaining, &settings.options, preview_map, left, right)?;
+        if self.shop(ctx, remaining, &settings.options, preview_map, left, right)? == ShopResult::ExitGame {
+          return Ok(RoundEnd::Game);
+        }
       }
     }
 
@@ -130,6 +173,11 @@ impl Application<'_> {
           } = event
           {
             match scancode {
+              Scancode::Escape if world.is_single_player() => {
+                // Artificial death
+                world.players[0].lives -= 1;
+                break 'round RoundEnd::Failed;
+              }
               Scancode::Escape => break 'round RoundEnd::Round,
               Scancode::F10 => break 'round RoundEnd::Game,
               // FIXME: some better scancode?
@@ -159,6 +207,9 @@ impl Application<'_> {
       ctx.with_render_context(|canvas| {
         if world.update.players_info {
           self.render_players_info(canvas, &world)?;
+          if world.is_single_player() {
+            self.render_lives(canvas, world.players[0].lives)?;
+          }
         }
 
         // Go through each update and render it
@@ -192,6 +243,9 @@ impl Application<'_> {
       }
 
       if world.is_end_of_round() {
+        if world.is_single_player() && world.actors[0].is_dead {
+          break RoundEnd::Failed;
+        }
         break RoundEnd::Round;
       }
 
@@ -473,8 +527,14 @@ impl Application<'_> {
     Ok(())
   }
 
-  fn render_lives(&self, _canvas: &mut WindowCanvas, _lives: u32) -> Result<(), anyhow::Error> {
-    unimplemented!()
+  fn render_lives(&self, canvas: &mut WindowCanvas, lives: u16) -> Result<(), anyhow::Error> {
+    canvas.set_draw_color(Color::BLACK);
+    canvas.fill_rect(Rect::new(160, 2, 480, 28)).map_err(SdlError)?;
+    for idx in 0..lives.max(3) {
+      let glyph = if idx < lives { Glyph::Life } else { Glyph::LifeLost };
+      self.glyphs.render(canvas, i32::from(idx * 16) + 160, 2, glyph)?;
+    }
+    Ok(())
   }
 
   fn render_actor(

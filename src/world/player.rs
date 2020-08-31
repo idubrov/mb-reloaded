@@ -20,7 +20,7 @@ pub struct PlayerComponent {
   /// Currently selected item
   pub selection: Equipment,
   /// For single player mode, tracks amount of lives player has. Not used in multi-player mode.
-  pub lives: u32,
+  pub lives: u16,
 }
 
 impl PlayerComponent {

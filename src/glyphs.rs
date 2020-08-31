@@ -48,6 +48,8 @@ pub enum Glyph {
   SandBorder(Direction, Border),
   StoneBorder(Direction, Border),
   Monster(ActorKind, Direction, Digging, AnimationPhase),
+  Life,
+  LifeLost,
 }
 
 impl Glyph {
@@ -120,6 +122,8 @@ impl Glyph {
         let pos_x = pos_x + (dir as i16) * 40 + i16::from(anim) * 10;
         (pos_x, pos_y, pos_x + 9, pos_y + 9)
       }
+      Glyph::Life => (31, 91, 42, 111),
+      Glyph::LifeLost => (43, 91, 61, 111),
     };
     Rect::new(
       i32::from(left),

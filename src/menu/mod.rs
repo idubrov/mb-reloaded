@@ -5,4 +5,4 @@ mod main;
 mod options;
 mod players;
 mod preview;
-mod shop;
+pub mod shop;

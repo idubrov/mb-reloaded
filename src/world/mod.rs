@@ -45,6 +45,8 @@ pub struct World<'p> {
   pub effects: SoundEffectsQueue,
   /// Damage percentage (0..100)
   pub bomb_damage: u8,
+  /// If exit was triggered (single player mode)
+  pub exited: bool,
 }
 
 /// Request to play sound effect at a given frequency and location
@@ -107,6 +109,7 @@ impl<'p> World<'p> {
       update: Default::default(),
       effects: Default::default(),
       bomb_damage,
+      exited: false,
     }
   }
 
@@ -195,14 +198,9 @@ impl<'p> World<'p> {
         if self.actors[0].is_dead {
           if self.end_round_counter == 0 {
             self.players[0].lives -= 1;
-            // FIXME: end round
-            if self.players[0].lives == 0 {
-              // FIXME: end game
-            }
             self.update.update_player_lives();
-          } else {
-            self.end_round_counter += 2;
           }
+          self.end_round_counter += 2;
         }
       } else if self.alive_players() < 2 {
         self.end_round_counter += 3;
@@ -287,7 +285,7 @@ impl<'p> World<'p> {
 
   /// Check end-of-round condition
   pub fn is_end_of_round(&self) -> bool {
-    self.end_round_counter > 100
+    self.exited || self.end_round_counter > 100
   }
 
   /// Check if still has gold remaining in the level
@@ -583,7 +581,7 @@ impl<'p> World<'p> {
       }
 
       self.actors[entity].drilling += drill_value;
-      self.actors[entity].accumulated_cash = gold_value;
+      self.actors[entity].accumulated_cash += gold_value;
 
       if value >= MapValue::SmallPickaxe && value <= MapValue::Drill {
         self.effects.play(SoundEffect::Picaxe, 11000, cursor);
@@ -753,7 +751,9 @@ impl<'p> World<'p> {
         }
       }
     } else if value == MapValue::Exit {
-      unimplemented!("level exit");
+      if self.is_single_player() {
+        self.exited = true;
+      }
     } else if value == MapValue::Medikit {
       if entity < self.players.len() {
         self.actors[entity].health = self.actors[entity].max_health;
