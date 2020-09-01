@@ -18,6 +18,8 @@ use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use std::rc::Rc;
 
+const SINGLE_PLAYER_ROUNDS: u16 = 15;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RoundEnd {
   /// Round end (all gold collected in multiplayer, all opponents are dead, etc)
@@ -54,7 +56,9 @@ impl Application<'_> {
     }
 
     let mut round = 0;
-    while round < settings.options.rounds {
+    while (!single_player && round < settings.options.rounds)
+      || (single_player && players[0].lives > 0 && round < SINGLE_PLAYER_ROUNDS)
+    {
       ctx.with_render_context(|canvas| {
         canvas.set_draw_color(Color::BLACK);
         canvas.clear();
@@ -87,12 +91,12 @@ impl Application<'_> {
       };
       ctx.animate(Animation::FadeDown, 7)?;
       let result = self.play_round(ctx, &mut players, round, level, settings)?;
+      if single_player && players[0].lives == 0 {
+        // End of game: out of lives!
+        break;
+      }
       match result {
         RoundEnd::Game => break,
-        RoundEnd::Failed if players[0].lives == 0 => {
-          // End of game: out of lives!
-          break;
-        }
         RoundEnd::Failed => {
           // Keep playing the same round!
         }
@@ -103,8 +107,18 @@ impl Application<'_> {
     }
 
     if single_player {
-      // FIXME: show win / lose screen
-      unimplemented!();
+      let texture = if round == SINGLE_PLAYER_ROUNDS {
+        &self.game_win.texture
+      } else {
+        &self.game_over.texture
+      };
+      ctx.with_render_context(|canvas| {
+        canvas.copy(texture, None, None).map_err(SdlError)?;
+        Ok(())
+      })?;
+      ctx.animate(Animation::FadeUp, 7)?;
+      ctx.wait_key_pressed();
+      ctx.animate(Animation::FadeDown, 7)?;
     }
     Ok(())
   }
