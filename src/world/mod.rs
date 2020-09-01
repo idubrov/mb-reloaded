@@ -231,6 +231,7 @@ impl<'p> World<'p> {
   /// Apply end of round rules (apply interest, commit collected cash, etc)
   pub fn end_of_round(&mut self) {
     if self.is_single_player() {
+      // In single player, we never lose money, even if we die
       self.players[0].cash += self.actors[0].accumulated_cash;
     } else {
       self.distribute_money();

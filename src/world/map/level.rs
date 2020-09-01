@@ -5,11 +5,20 @@ use num_enum::TryFromPrimitive;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use std::convert::TryFrom;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[error("Invalid map format")]
 pub struct InvalidMap;
+
+#[derive(Debug, Error)]
+#[error("Single player map '{path}' cannot be loaded")]
+pub struct CannotLoadSinglePlayer {
+  path: PathBuf,
+  #[source]
+  source: anyhow::Error,
+}
 
 pub type LevelMap = Map<MapValue>;
 
@@ -79,6 +88,7 @@ impl LevelMap {
     data
   }
 
+  /// Generate randomized map
   pub fn random_map(treasures: u8) -> Self {
     let mut map = LevelMap::empty();
     map.generate_random_stone();
@@ -87,6 +97,36 @@ impl LevelMap {
     map.generate_random_items();
     map.generate_borders();
     map
+  }
+
+  /// Load a single player level for a given round
+  pub fn prepare_singleplayer_level(game_dir: &Path, round: u16) -> Result<LevelInfo, CannotLoadSinglePlayer> {
+    let filename = format!("LEVEL{}.MNL", round);
+    let path = game_dir.join(filename);
+    let mut map = std::fs::read(&path)
+      .map_err(anyhow::Error::from)
+      .and_then(|data| LevelMap::from_file_map(data).map_err(anyhow::Error::from))
+      .map_err(|source| CannotLoadSinglePlayer {
+        path: path.to_owned(),
+        source: source.into(),
+      })?;
+
+    let exit_count = Cursor::all().filter(|cur| map[*cur] == MapValue::Exit).count();
+    let mut rng = rand::thread_rng();
+    let selected = rng.gen_range(0, exit_count);
+    let mut idx = 0;
+    for cur in Cursor::all() {
+      if map[cur] == MapValue::Exit {
+        if idx != selected {
+          map[cur] = MapValue::Passage;
+        }
+        idx += 1;
+      }
+    }
+    Ok(LevelInfo::File {
+      name: format!("LEVEL{}", round),
+      map,
+    })
   }
 
   /// Generate random stones on the map. This algorithm is close to the one used in the original

@@ -73,14 +73,7 @@ impl Application<'_> {
       ctx.animate(Animation::FadeUp, 7)?;
       let slot;
       let level = if settings.options.players == 1 {
-        let filename = format!("LEVEL{}.MNL", round);
-        let path = ctx.game_dir().join(filename);
-        let data = std::fs::read(path)?;
-        let map = LevelMap::from_file_map(data)?;
-        slot = LevelInfo::File {
-          name: format!("LEVEL{}", round),
-          map,
-        };
+        slot = LevelMap::prepare_singleplayer_level(ctx.game_dir(), round)?;
         &slot
       } else {
         settings
