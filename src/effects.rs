@@ -26,11 +26,13 @@ pub enum SoundEffect {
   Karjaisu,
   Pikkupom,
   Urethan,
+  Applause,
 }
 
 /// VOC files are unsigned, eight bits, 1 channel, frequency defined at the playback time (typically 11000).
 /// We use `Arc` here so we can give references to these samples to sound effects without worrying
 /// about ownership.
+#[derive(Clone)]
 struct RawSample(Arc<[u8]>);
 
 pub struct SoundEffects {
@@ -45,6 +47,7 @@ pub struct SoundEffects {
   karjaisu: RawSample,
   pikkupom: RawSample,
   urethan: RawSample,
+  applause: RawSample,
 }
 
 impl SoundEffects {
@@ -62,6 +65,7 @@ impl SoundEffects {
       karjaisu: load_sample(path.join("KARJAISU.VOC"))?,
       pikkupom: load_sample(path.join("PIKKUPOM.VOC"))?,
       urethan: load_sample(path.join("URETHAN.VOC"))?,
+      applause: load_sample(path.join("APPLAUSE.VOC"))?,
     })
   }
 
@@ -69,21 +73,22 @@ impl SoundEffects {
   pub fn play(&self, effect: SoundEffect, frequency: i32, location: Cursor) -> Result<(), anyhow::Error> {
     let position = f32::from(location.col) / f32::from(MAP_COLS - 1);
     let effect = match effect {
-      SoundEffect::Kili => self.kili.0.clone(),
-      SoundEffect::Picaxe => self.picaxe.0.clone(),
-      SoundEffect::Explos1 => self.explos1.0.clone(),
-      SoundEffect::Explos2 => self.explos2.0.clone(),
-      SoundEffect::Explos3 => self.explos3.0.clone(),
-      SoundEffect::Explos4 => self.explos4.0.clone(),
-      SoundEffect::Explos5 => self.explos5.0.clone(),
-      SoundEffect::Aargh => self.aargh.0.clone(),
-      SoundEffect::Karjaisu => self.karjaisu.0.clone(),
-      SoundEffect::Pikkupom => self.pikkupom.0.clone(),
-      SoundEffect::Urethan => self.urethan.0.clone(),
+      SoundEffect::Kili => &self.kili,
+      SoundEffect::Picaxe => &self.picaxe,
+      SoundEffect::Explos1 => &self.explos1,
+      SoundEffect::Explos2 => &self.explos2,
+      SoundEffect::Explos3 => &self.explos3,
+      SoundEffect::Explos4 => &self.explos4,
+      SoundEffect::Explos5 => &self.explos5,
+      SoundEffect::Aargh => &self.aargh,
+      SoundEffect::Karjaisu => &self.karjaisu,
+      SoundEffect::Pikkupom => &self.pikkupom,
+      SoundEffect::Urethan => &self.urethan,
+      SoundEffect::Applause => &self.applause,
     };
     // FIXME: reuse channels if all cannels are busy
     let channel = Channel::all();
-    mb_sdl2_effects::play_sound_sample(channel, frequency, effect, position).map_err(SdlError)?;
+    mb_sdl2_effects::play_sound_sample(channel, frequency, effect.0.clone(), position).map_err(SdlError)?;
     Ok(())
   }
 }

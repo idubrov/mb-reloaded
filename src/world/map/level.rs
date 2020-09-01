@@ -108,7 +108,7 @@ impl LevelMap {
       .and_then(|data| LevelMap::from_file_map(data).map_err(anyhow::Error::from))
       .map_err(|source| CannotLoadSinglePlayer {
         path: path.to_owned(),
-        source: source.into(),
+        source,
       })?;
 
     let exit_count = Cursor::all().filter(|cur| map[*cur] == MapValue::Exit).count();

@@ -1,6 +1,8 @@
 use crate::context::{Animation, ApplicationContext};
+use crate::effects::SoundEffect;
 use crate::error::ApplicationError::SdlError;
 use crate::glyphs::{AnimationPhase, Border, Digging, Glyph};
+use crate::highscore::{Highscores, Score};
 use crate::keys::Key;
 use crate::menu::shop::ShopResult;
 use crate::settings::GameSettings;
@@ -100,23 +102,103 @@ impl Application<'_> {
     }
 
     if single_player {
-      let texture = if round == SINGLE_PLAYER_ROUNDS {
-        &self.game_win.texture
-      } else {
-        &self.game_over.texture
-      };
-      ctx.with_render_context(|canvas| {
-        canvas.copy(texture, None, None).map_err(SdlError)?;
-        Ok(())
-      })?;
-      ctx.animate(Animation::FadeUp, 7)?;
-      ctx.wait_key_pressed();
-      ctx.animate(Animation::FadeDown, 7)?;
+      self.single_player_end(ctx, round == SINGLE_PLAYER_ROUNDS)?;
+      self.hall_of_fame(ctx, round as u8, &players[0])?;
+    } else {
+      self.multi_player_end(ctx)?;
+      // FIXME: update player stats
     }
     Ok(())
   }
 
-  pub fn play_round(
+  /// Show ending screen of a single player game
+  fn single_player_end(&self, ctx: &mut ApplicationContext, win: bool) -> Result<(), anyhow::Error> {
+    let texture = if win {
+      &self.game_win.texture
+    } else {
+      &self.game_over.texture
+    };
+    ctx.with_render_context(|canvas| {
+      canvas.copy(texture, None, None).map_err(SdlError)?;
+      Ok(())
+    })?;
+    ctx.animate(Animation::FadeUp, 7)?;
+    if win {
+      self
+        .effects
+        .play(SoundEffect::Applause, 11000, Cursor::new(0, MAP_COLS / 2))?;
+    }
+    ctx.wait_key_pressed();
+    ctx.animate(Animation::FadeDown, 7)?;
+    Ok(())
+  }
+
+  /// Show hall of fame for a single player game
+  fn hall_of_fame(
+    &self,
+    ctx: &mut ApplicationContext,
+    rounds: u8,
+    player: &PlayerComponent,
+  ) -> Result<(), anyhow::Error> {
+    let mut scores = Highscores::load(ctx.game_dir())?;
+    let pos = scores
+      .scores
+      .binary_search_by(|score| {
+        rounds
+          .cmp(score.as_ref().map_or(&0, |s| &s.level))
+          .then_with(|| player.cash.cmp(score.as_ref().map_or(&0, |s| &s.cash)))
+      })
+      .unwrap_or_else(|pos| pos);
+    if pos < scores.scores.len() {
+      // Drop the last element, replace it with the new score
+      scores.scores[pos..].rotate_right(1);
+      scores.scores[pos] = Some(Score {
+        name: player.stats.name.to_owned(),
+        level: rounds,
+        cash: player.cash,
+      });
+      scores.save(ctx.game_dir())?;
+    }
+
+    // FIXME: implement rendering!
+    ctx.with_render_context(|canvas| {
+      canvas.copy(&self.halloffa.texture, None, None).map_err(SdlError)?;
+      let color = self.halloffa.palette[1];
+      for (idx, score) in scores.scores.iter().enumerate() {
+        if let Some(score) = score {
+          let text = format!(
+            "{:<2}    {:<20}Level {:<2} Money {}",
+            idx + 1,
+            score.name,
+            score.level,
+            score.cash
+          );
+          self.font.render(canvas, 127, 10 * (idx as i32) + 179, color, &text)?;
+        }
+      }
+      Ok(())
+    })?;
+    ctx.animate(Animation::FadeUp, 7)?;
+    ctx.wait_key_pressed();
+    ctx.animate(Animation::FadeDown, 7)?;
+    Ok(())
+  }
+
+  /// Show end screen for a multiplayer game
+  fn multi_player_end(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+    ctx.with_render_context(|canvas| {
+      canvas.copy(&self.r#final.texture, None, None).map_err(SdlError)?;
+      Ok(())
+    })?;
+    ctx.animate(Animation::FadeUp, 7)?;
+    // FIXME: implement
+    ctx.wait_key_pressed();
+    ctx.animate(Animation::FadeDown, 7)?;
+    Ok(())
+  }
+
+  /// Play a single game round
+  fn play_round(
     &self,
     ctx: &mut ApplicationContext,
     players: &mut [PlayerComponent],
@@ -138,25 +220,24 @@ impl Application<'_> {
     };
 
     // Play shop music
-    if std::env::var("DEV").is_err() {
-      self.music2.play(-1).map_err(SdlError)?;
-      sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
+    self.music2.play(-1).map_err(SdlError)?;
+    sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
 
-      let mut it = players.iter_mut();
-      while let Some(right) = it.next() {
-        let left = it.next();
-        let remaining = settings.options.rounds - round;
-        let preview_map = if darkness { None } else { Some(&level) };
-        if self.shop(ctx, remaining, &settings.options, preview_map, left, right)? == ShopResult::ExitGame {
-          return Ok(RoundEnd::Game);
-        }
+    let mut it = players.iter_mut();
+    while let Some(right) = it.next() {
+      let left = it.next();
+      let remaining = settings.options.rounds - round;
+      let preview_map = if darkness { None } else { Some(&level) };
+      if self.shop(ctx, remaining, &settings.options, preview_map, left, right)? == ShopResult::ExitGame {
+        return Ok(RoundEnd::Game);
       }
     }
 
     let mut world = World::create(level, players, darkness, settings.options.bomb_damage);
 
-    // FIXME: start playing random music from level music
     sdl2::mixer::Music::halt();
+    // FIXME: start playing random music from the level music; also, don't play shop music?
+    self.music1.play(-1).map_err(SdlError)?;
 
     ctx.with_render_context(|canvas| {
       self.render_game_screen(canvas, &world)?;
@@ -272,12 +353,11 @@ impl Application<'_> {
 
       std::thread::sleep(std::time::Duration::from_millis(20));
     };
+
+    sdl2::mixer::Music::halt();
     ctx.animate(Animation::FadeDown, 7)?;
 
-    if exit_reason == RoundEnd::Round {
-      world.end_of_round();
-    }
-
+    world.end_of_round();
     Ok(exit_reason)
   }
 

@@ -63,7 +63,11 @@ impl PlayersRoster {
   /// Load player statistics from `PLAYERS.DAT` file.
   pub fn load(game_dir: &Path) -> Result<PlayersRoster, PlayersLoadError> {
     let path = game_dir.join("PLAYERS.DAT");
-    PlayersRoster::load_players_internal(&path).map_err(|source| PlayersLoadError { path, source })
+    if path.is_file() {
+      PlayersRoster::load_players_internal(&path).map_err(|source| PlayersLoadError { path, source })
+    } else {
+      Ok(Default::default())
+    }
   }
 
   fn load_players_internal(path: &Path) -> Result<PlayersRoster, std::io::Error> {

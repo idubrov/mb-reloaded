@@ -230,6 +230,12 @@ impl<'p> World<'p> {
 
   /// Apply end of round rules (apply interest, commit collected cash, etc)
   pub fn end_of_round(&mut self) {
+    // Apply interest on all existing cash
+    for player in self.players.iter_mut() {
+      // add 7% of cash
+      player.cash = (107 * player.cash + 50) / 100;
+    }
+
     if self.is_single_player() {
       // In single player, we never lose money, even if we die
       self.players[0].cash += self.actors[0].accumulated_cash;
@@ -246,12 +252,6 @@ impl<'p> World<'p> {
 
   /// Distribute money in a multiplayer mode
   fn distribute_money(&mut self) {
-    // Apply interest
-    for player in self.players.iter_mut() {
-      // add 7% of cash
-      player.cash = (107 * player.cash + 50) / 100;
-    }
-
     let mut lost_money: u32 = self.actors[0..self.players.len()]
       .iter()
       .filter(|actor| actor.is_dead)

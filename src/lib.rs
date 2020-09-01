@@ -3,11 +3,6 @@ use crate::effects::SoundEffects;
 use crate::fonts::Font;
 use crate::glyphs::Glyphs;
 use crate::images::TexturePalette;
-use crate::roster::RosterInfo;
-use crate::settings::GameSettings;
-use crate::world::equipment::Equipment;
-use crate::world::map::{LevelInfo, LevelMap};
-use crate::world::player::PlayerComponent;
 use sdl2::mixer::Music;
 use std::path::Path;
 
@@ -18,6 +13,7 @@ pub mod effects;
 mod error;
 pub mod fonts;
 mod glyphs;
+mod highscore;
 mod identities;
 pub mod images;
 mod keys;
@@ -30,63 +26,11 @@ pub mod world;
 const SCREEN_WIDTH: u32 = 640;
 const SCREEN_HEIGHT: u32 = 480;
 
-//const MAP_WIDTH: usize = 64;
-//const MAP_HEIGHT: usize = 45;
-
 pub fn main() -> Result<(), anyhow::Error> {
   let path = args::parse_args();
   context::ApplicationContext::with_context(path, |mut ctx| {
     let app = Application::init(&ctx)?;
-    // To skip menus during development
-    if std::env::var("DEV").is_ok() {
-      // let data = std::fs::read("../minebomb/KARJAISU.VOC")?;
-      // let audio = crate::audio::from_voc_bytes(data, Some(10300))?;
-      sdl2::mixer::allocate_channels(16);
-      // sdl2::mixer::Channel(0).play(&audio, 10);
-
-      let data = std::fs::read("../minebomb/AA1.MNE")?;
-      let map = LevelMap::from_file_map(data)?;
-      let level = LevelInfo::File {
-        name: "CARAMBA".into(),
-        map,
-      };
-      let settings = GameSettings::load(ctx.game_dir());
-      let player1 = RosterInfo {
-        name: "First".to_string(),
-        ..Default::default()
-      };
-      let player2 = RosterInfo {
-        name: "Second".to_string(),
-        ..Default::default()
-      };
-      let mut players = vec![
-        PlayerComponent::new(player1, settings.keys.keys[0], &settings.options),
-        PlayerComponent::new(player2, settings.keys.keys[1], &settings.options),
-        // PlayerEntity::new(player3, settings.keys.keys[1], u32::from(settings.options.cash)),
-        // PlayerEntity::new(player4, settings.keys.keys[1], u32::from(settings.options.cash)),
-      ];
-      // for item in Equipment::all_equipment() {
-      //   if item != Equipment::Armor {
-      //     players[0].inventory[item] = 50;
-      //   } else {
-      //     players[0].inventory[item] = 1;
-      //   }
-      // }
-      //players[0].inventory[Equipment::Clone] = 100;
-      players[0].inventory[Equipment::Dynamite] = 100;
-      //players[0].inventory[Equipment::AtomicBomb] = 100;
-      //players[0].inventory[Equipment::Teleport] = 100;
-      //players[1].inventory[Equipment::SmallBomb] = 100;
-      //players[0].inventory[Equipment::Napalm] = 100;
-      //players[0].inventory[Equipment::AtomicBomb] = 100;
-      //players[0].inventory[Equipment::Armor] = 100;
-      //players[0].inventory[Equipment::LargePickaxe] = 0;
-      players[0].inventory[Equipment::Drill] = 100;
-      players[1].inventory[Equipment::Drill] = 100;
-      app.play_round(&mut ctx, &mut players, 0, &level, &settings)?;
-    } else {
-      app.main_menu(&mut ctx)?;
-    }
+    app.main_menu(&mut ctx)?;
     Ok(())
   })?;
   Ok(())
@@ -105,6 +49,8 @@ struct Application<'t> {
   players: TexturePalette<'t>,
   game_over: TexturePalette<'t>,
   game_win: TexturePalette<'t>,
+  r#final: TexturePalette<'t>,
+  halloffa: TexturePalette<'t>,
   glyphs: Glyphs<'t>,
   font: Font<'t>,
   music1: Music<'static>,
@@ -136,6 +82,8 @@ impl<'textures> Application<'textures> {
       players: ctx.load_spy("PLAYERS.SPY")?,
       game_over: ctx.load_spy("GAMEOVER.SPY")?,
       game_win: ctx.load_spy("CONGRATU.SPY")?,
+      r#final: ctx.load_spy("FINAL.SPY")?,
+      halloffa: ctx.load_spy("HALLOFFA.SPY")?,
       music1: ctx.load_music("HUIPPE.S3M")?,
       music2: ctx.load_music("OEKU.S3M")?,
       effects: SoundEffects::new(ctx.game_dir())?,
