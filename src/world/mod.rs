@@ -132,6 +132,10 @@ impl<'p> World<'p> {
   }
 
   pub fn player_action(&mut self, player: usize, key: Key) {
+    if self.actors[player].is_dead {
+      // Dead players cannot do any actions
+      return;
+    }
     let mut direction = None;
     let selection = self.players[player].selection;
     match key {
@@ -408,7 +412,6 @@ impl<'p> World<'p> {
       Equipment::SuperDrill => {
         self.actors[player].super_drill_count = 10;
         self.actors[player].drilling += 300;
-        return;
       }
       _other if CANNOT_PLACE_BOMB[self.maps.level[cursor]] => {
         // Cannot place bomb here!
@@ -423,8 +426,8 @@ impl<'p> World<'p> {
 
     self.players[player].inventory[item] -= 1;
     self.players[player].stats.bombs_dropped += 1;
-    // FIXME: render items count...
-    // FIXME: reveal map square
+    self.update.update_cell(cursor);
+    self.update.update_player_selection(player);
   }
 
   /// Fire a fire extinguisher

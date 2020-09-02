@@ -112,7 +112,6 @@ impl Application<'_> {
     } else {
       self.multi_player_end(ctx, &players, settings.options.win)?;
       update_player_stats(ctx.game_dir(), &mut players, &players_to_roster, settings.options.win)?;
-      // FIXME: update player stats
     }
     Ok(())
   }
@@ -350,6 +349,7 @@ impl Application<'_> {
           if world.is_single_player() {
             self.render_lives(canvas, world.players[0].lives)?;
           }
+          world.update.players_info = false;
         }
 
         // Go through each update and render it
