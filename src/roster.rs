@@ -19,7 +19,7 @@ pub struct PlayersSaveError {
   path: PathBuf,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RosterInfo {
   pub name: String,
   pub tournaments: u32,
@@ -51,6 +51,31 @@ impl Default for RosterInfo {
       meters_ran: 0,
       history: vec![0; 34],
     }
+  }
+}
+
+impl RosterInfo {
+  /// Update roster statistics at the end of the tournament
+  pub fn update_stats_tournament(&mut self, other: &RosterInfo) {
+    // Contrary to the original game, don't count games where not a single round was played
+    if other.rounds == 0 {
+      return;
+    }
+    let hlen = self.history.len() as u32;
+    let history_idx = (self.tournaments % hlen) as usize;
+    let last_history_idx = ((self.tournaments + hlen - 1) % hlen) as usize;
+    let history_value = self.history[last_history_idx] / 2 + ((129 * other.rounds_wins / other.rounds) as u8) / 2;
+    self.tournaments += other.tournaments;
+    self.tournaments_wins += other.tournaments_wins;
+    self.rounds += other.rounds;
+    self.rounds_wins += other.rounds_wins;
+    self.treasures_collected += other.treasures_collected;
+    self.total_money += other.total_money;
+    self.bombs_bought += other.bombs_bought;
+    self.bombs_dropped += other.bombs_dropped;
+    self.deaths += other.deaths;
+    self.meters_ran += other.meters_ran;
+    self.history[history_idx] = history_value;
   }
 }
 

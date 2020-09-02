@@ -3,7 +3,7 @@ use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum WinCondition {
   ByWins,
   ByMoney,

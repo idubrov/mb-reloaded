@@ -21,12 +21,18 @@ pub struct PlayerComponent {
   pub selection: Equipment,
   /// For single player mode, tracks amount of lives player has. Not used in multi-player mode.
   pub lives: u16,
+  /// For multi-player mode, amount of won rounds (separate from stats, which tracks rounds won
+  /// across all games).
+  pub rounds_win: u32,
 }
 
 impl PlayerComponent {
-  pub fn new(stats: RosterInfo, keys: KeyBindings, options: &Options) -> Self {
+  pub fn new(name: String, keys: KeyBindings, options: &Options) -> Self {
     PlayerComponent {
-      stats,
+      stats: RosterInfo {
+        name,
+        ..Default::default()
+      },
       keys,
       cash: u32::from(options.cash),
       ..Default::default()

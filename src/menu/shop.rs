@@ -174,6 +174,7 @@ impl Application<'_> {
         if state.entity.cash >= prices[selection] {
           state.entity.cash -= prices[selection];
           state.entity.inventory[selection] += 1;
+          state.entity.stats.bombs_bought += 1;
         }
       } else {
         state.ready = true;

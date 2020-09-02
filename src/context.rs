@@ -104,6 +104,16 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     )?)
   }
 
+  /// Load PPM texture from a given path
+  pub fn load_ppm(&self, file_name: &str) -> Result<TexturePalette<'textures>, anyhow::Error> {
+    let path = self.game_dir.join(file_name);
+    Ok(crate::images::load_texture(
+      &self.texture_creator,
+      &path,
+      TextureFormat::PPM,
+    )?)
+  }
+
   /// Load fonts from a given path
   pub fn load_font(&self, file_name: &str) -> Result<Font<'textures>, anyhow::Error> {
     let path = self.game_dir.join(file_name);

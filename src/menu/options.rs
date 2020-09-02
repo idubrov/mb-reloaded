@@ -72,7 +72,7 @@ impl GameOption {
         options.round_time = options
           .round_time
           .checked_sub(Duration::from_secs(15))
-          .unwrap_or(Duration::from_secs(0));
+          .unwrap_or_else(|| Duration::from_secs(0));
       }
       GameOption::Players if options.players > 1 => {
         options.players -= 1;

@@ -26,6 +26,12 @@ pub mod world;
 const SCREEN_WIDTH: u32 = 640;
 const SCREEN_HEIGHT: u32 = 480;
 
+pub struct Avatars<'t> {
+  win: TexturePalette<'t>,
+  lose: TexturePalette<'t>,
+  draw: TexturePalette<'t>,
+}
+
 pub fn main() -> Result<(), anyhow::Error> {
   let path = args::parse_args();
   context::ApplicationContext::with_context(path, |mut ctx| {
@@ -51,6 +57,7 @@ struct Application<'t> {
   game_win: TexturePalette<'t>,
   r#final: TexturePalette<'t>,
   halloffa: TexturePalette<'t>,
+  avatars: [Avatars<'t>; 4],
   glyphs: Glyphs<'t>,
   font: Font<'t>,
   music1: Music<'static>,
@@ -88,6 +95,28 @@ impl<'textures> Application<'textures> {
       music2: ctx.load_music("OEKU.S3M")?,
       effects: SoundEffects::new(ctx.game_dir())?,
       registered: load_registered(ctx.game_dir()).unwrap_or_else(String::new),
+      avatars: [
+        Avatars {
+          win: ctx.load_ppm("SINVOIT.PPM")?,
+          draw: ctx.load_ppm("SINDRAW.PPM")?,
+          lose: ctx.load_ppm("SINLOSE.PPM")?,
+        },
+        Avatars {
+          win: ctx.load_ppm("PUNVOIT.PPM")?,
+          draw: ctx.load_ppm("PUNDRAW.PPM")?,
+          lose: ctx.load_ppm("PUNLOSE.PPM")?,
+        },
+        Avatars {
+          win: ctx.load_ppm("VIHVOIT.PPM")?,
+          draw: ctx.load_ppm("VIHDRAW.PPM")?,
+          lose: ctx.load_ppm("VIHLOSE.PPM")?,
+        },
+        Avatars {
+          win: ctx.load_ppm("KELVOIT.PPM")?,
+          draw: ctx.load_ppm("KELDRAW.PPM")?,
+          lose: ctx.load_ppm("KELLOSE.PPM")?,
+        },
+      ],
     })
   }
 }

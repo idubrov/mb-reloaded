@@ -5,6 +5,8 @@ use crate::glyphs::{AnimationPhase, Border, Digging, Glyph};
 use crate::highscore::{Highscores, Score};
 use crate::keys::Key;
 use crate::menu::shop::ShopResult;
+use crate::options::WinCondition;
+use crate::roster::PlayersRoster;
 use crate::settings::GameSettings;
 use crate::world::actor::ActorComponent;
 use crate::world::map::{LevelInfo, LevelMap, MapValue, DIRT_BORDER_BITMAP, MAP_COLS, MAP_ROWS};
@@ -18,6 +20,7 @@ use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
+use std::path::Path;
 use std::rc::Rc;
 
 const SINGLE_PLAYER_ROUNDS: u16 = 15;
@@ -43,12 +46,14 @@ impl Application<'_> {
     }
 
     let mut players = Vec::with_capacity(selected.len());
+    let mut players_to_roster = Vec::with_capacity(selected.len());
     for (idx, selected) in selected.into_iter().enumerate() {
       players.push(PlayerComponent::new(
-        selected,
+        selected.name,
         settings.keys.keys[idx],
         &settings.options,
       ));
+      players_to_roster.push(selected.roster_index);
     }
 
     if single_player {
@@ -105,7 +110,8 @@ impl Application<'_> {
       self.single_player_end(ctx, round == SINGLE_PLAYER_ROUNDS)?;
       self.hall_of_fame(ctx, round as u8, &players[0])?;
     } else {
-      self.multi_player_end(ctx)?;
+      self.multi_player_end(ctx, &players, settings.options.win)?;
+      update_player_stats(ctx.game_dir(), &mut players, &players_to_roster, settings.options.win)?;
       // FIXME: update player stats
     }
     Ok(())
@@ -185,15 +191,53 @@ impl Application<'_> {
   }
 
   /// Show end screen for a multiplayer game
-  fn multi_player_end(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  fn multi_player_end(
+    &self,
+    ctx: &mut ApplicationContext,
+    players: &[PlayerComponent],
+    win: WinCondition,
+  ) -> Result<(), anyhow::Error> {
     ctx.with_render_context(|canvas| {
       canvas.copy(&self.r#final.texture, None, None).map_err(SdlError)?;
+      for idx in 0..players.len() {
+        let score = compute_score(players, idx, win);
+        let avatars = &self.avatars[idx];
+        let dest = Rect::new(32 + 150 * (idx as i32), 95, 132, 218);
+        let texture = match score {
+          PlayerWin::Win => &avatars.win.texture,
+          PlayerWin::Lose => &avatars.lose.texture,
+          PlayerWin::Draw => &avatars.draw.texture,
+        };
+        canvas.copy(texture, None, dest).map_err(SdlError)?;
+        let color = self.r#final.palette[1];
+        self
+          .font
+          .render(canvas, 36 + 150 * (idx as i32), 330, color, &players[idx].stats.name)?;
+        self.font.render(
+          canvas,
+          36 + 150 * (idx as i32),
+          362,
+          color,
+          &players[idx].rounds_win.to_string(),
+        )?;
+        self.font.render(
+          canvas,
+          36 + 150 * (idx as i32),
+          346,
+          color,
+          &players[idx].cash.to_string(),
+        )?;
+      }
       Ok(())
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
-    // FIXME: implement
+    self
+      .effects
+      .play(SoundEffect::Applause, 11000, Cursor::new(0, MAP_COLS / 2))?;
     ctx.wait_key_pressed();
     ctx.animate(Animation::FadeDown, 7)?;
+
+    // FIXME: save stats back!
     Ok(())
   }
 
@@ -237,7 +281,8 @@ impl Application<'_> {
 
     sdl2::mixer::Music::halt();
     // FIXME: start playing random music from the level music; also, don't play shop music?
-    self.music1.play(-1).map_err(SdlError)?;
+    self.music2.play(-1).map_err(SdlError)?;
+    let mut music_on = true;
 
     ctx.with_render_context(|canvas| {
       self.render_game_screen(canvas, &world)?;
@@ -272,7 +317,14 @@ impl Application<'_> {
               Scancode::Pause => {
                 paused = true;
               }
-              Scancode::F5 => unimplemented!("toggle music"),
+              Scancode::F5 => {
+                if music_on {
+                  sdl2::mixer::Music::pause();
+                } else {
+                  sdl2::mixer::Music::resume();
+                }
+                music_on = !music_on;
+              }
               _ => {}
             }
 
@@ -671,4 +723,53 @@ fn border_offset(dir: Direction) -> (i32, i32) {
     Direction::Up => (-5, -8),
     Direction::Down => (-5, 5),
   }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PlayerWin {
+  Lose,
+  Draw,
+  Win,
+}
+
+fn compute_score(players: &[PlayerComponent], player: usize, win: WinCondition) -> PlayerWin {
+  let scorefn = |player: &PlayerComponent| match win {
+    WinCondition::ByWins => player.rounds_win,
+    WinCondition::ByMoney => player.cash,
+  };
+  let score = scorefn(&players[player]);
+  let bested_by = players.iter().filter(|player| scorefn(player) > score).count();
+  if bested_by == 0 {
+    PlayerWin::Win
+  } else if bested_by == players.len() - 1 {
+    PlayerWin::Lose
+  } else {
+    PlayerWin::Draw
+  }
+}
+
+fn update_player_stats(
+  game_dir: &Path,
+  players: &mut [PlayerComponent],
+  player_to_roster: &[u8],
+  win: WinCondition,
+) -> Result<(), anyhow::Error> {
+  let mut roster = PlayersRoster::load(game_dir)?;
+  for idx in 0..players.len() {
+    let is_win = compute_score(&players, idx, win) == PlayerWin::Win;
+    let mut stats = &mut players[idx].stats;
+    let tournament = stats.tournaments as usize;
+    let history_len = stats.history.len();
+    stats.history[tournament % history_len] = 123;
+    stats.tournaments += 1;
+    if is_win {
+      stats.tournaments_wins += 1;
+    }
+
+    if let Some(roster_stats) = roster.players[usize::from(player_to_roster[idx])].as_mut() {
+      roster_stats.update_stats_tournament(&stats);
+    }
+  }
+  roster.save(game_dir)?;
+  Ok(())
 }

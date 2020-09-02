@@ -17,6 +17,11 @@ const RIGHT_PANEL_Y: i32 = 22;
 const LEFT_PANEL_X: i32 = 44;
 const LEFT_PANEL_Y: i32 = 35;
 
+pub struct SelectedPlayer {
+  pub name: String,
+  pub roster_index: u8,
+}
+
 struct State {
   players: u8,
   roster: PlayersRoster,
@@ -95,7 +100,7 @@ impl Application<'_> {
     &self,
     ctx: &mut ApplicationContext,
     total_players: u8,
-  ) -> Result<Vec<RosterInfo>, anyhow::Error> {
+  ) -> Result<Vec<SelectedPlayer>, anyhow::Error> {
     let mut state = State {
       players: total_players,
       roster: PlayersRoster::load(ctx.game_dir())?,
@@ -171,12 +176,14 @@ impl Application<'_> {
       selected.reserve(usize::from(total_players));
       for idx in 0..total_players {
         let roster_index = state.identities.players[usize::from(idx)].unwrap();
-        selected.push(
-          state.roster.players[usize::from(roster_index)]
+        selected.push(SelectedPlayer {
+          name: state.roster.players[usize::from(roster_index)]
             .as_ref()
             .unwrap()
-            .clone(),
-        );
+            .name
+            .to_owned(),
+          roster_index,
+        });
       }
     }
     Ok(selected)

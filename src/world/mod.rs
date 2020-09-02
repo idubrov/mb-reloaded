@@ -274,6 +274,7 @@ impl<'p> World<'p> {
 
         if alive_players != total_players {
           // FIXME: need to store "rounds won in a game" as well?
+          player.rounds_win += 1;
           player.stats.rounds_wins += 1;
         }
       }
