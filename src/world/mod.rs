@@ -277,7 +277,6 @@ impl<'p> World<'p> {
         player.cash += lost_money / (alive_players as u32) + actor.accumulated_cash;
 
         if alive_players != total_players {
-          // FIXME: need to store "rounds won in a game" as well?
           player.rounds_win += 1;
           player.stats.rounds_wins += 1;
         }
@@ -628,7 +627,6 @@ impl<'p> World<'p> {
           self.maps.level[cursor] = MapValue::Passage;
           self.maps.timer[cursor] = 0;
 
-          // FIXME: re-render blood
           self.reapply_blood(cursor);
 
           self.update.update_cell(cursor);

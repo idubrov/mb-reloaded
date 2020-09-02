@@ -22,6 +22,7 @@ use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use std::path::Path;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 const SINGLE_PLAYER_ROUNDS: u16 = 15;
 
@@ -289,6 +290,8 @@ impl Application<'_> {
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
 
+    let start = Instant::now();
+    let mut paused_time = Duration::from_secs(0);
     let exit_reason = 'round: loop {
       world.tick();
 
@@ -338,10 +341,14 @@ impl Application<'_> {
           }
         }
         if paused {
+          // If we were paused, add to a
+          let start = Instant::now();
           ctx.wait_key_pressed();
+          paused_time += start.elapsed();
         }
       }
 
+      let round_time = start.elapsed() - paused_time;
       // Apply all rendering updates
       ctx.with_render_context(|canvas| {
         if world.update.players_info {
@@ -374,12 +381,21 @@ impl Application<'_> {
           }
         }
 
+        // Update end of round indicator
+        if !world.is_single_player() {
+          let width = ((635 * round_time.as_millis()) / settings.options.round_time.as_millis()).min(635) as i32;
+          canvas.set_draw_color(self.players.palette[0]);
+          canvas
+            .fill_rect(Rect::new(636 - width, 473, width as u32, 5))
+            .map_err(SdlError)?;
+        }
+
         world.update.queue.clear();
         Ok(())
       })?;
 
-      if world.round_counter % 20 == 0 {
-        // FIXME: update remaining time indicator
+      if !world.is_single_player() && round_time >= settings.options.round_time {
+        break RoundEnd::Round;
       }
 
       if world.is_end_of_round() {
@@ -433,7 +449,7 @@ impl Application<'_> {
     } else {
       // Time bar
       canvas.set_draw_color(self.players.palette[6]);
-      canvas.fill_rect(Rect::new(2, 473, 636, 5)).map_err(SdlError)?;
+      canvas.fill_rect(Rect::new(2, 473, 635, 5)).map_err(SdlError)?;
     }
     Ok(())
   }
