@@ -1,8 +1,6 @@
-# MineBombers Reloaded
+# RIIR MineBombers
 
-This project is re-implementation of the classic MineBombers 3.11. At this point, it's only a beginning with almost nothing implemented yet.
-
-This implementation required original game installation, which you can [download] for free.
+This project is re-implementation of the classic MineBombers 3.11 in Rust. It uses original resources, but runs a new, Rust binary.
 
 Running the game:
 
@@ -20,8 +18,7 @@ brew install sdl2 sdl2_mixer
 
 ## Why?
 
-It's fun!
-
+As a cargo cult follower, I cannot stop myself from rewriting everything in Rust. Rewriting this game was some sort of a tribute to the very fun game I've spent many hours playing with my school friends.
 
 
 [download]: https://dosgames.com/game/mine-bombers/
