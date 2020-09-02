@@ -273,6 +273,7 @@ impl Application<'_> {
       let remaining = settings.options.rounds - round;
       let preview_map = if darkness { None } else { Some(&level) };
       if self.shop(ctx, remaining, &settings.options, preview_map, left, right)? == ShopResult::ExitGame {
+        sdl2::mixer::Music::halt();
         return Ok(RoundEnd::Game);
       }
     }
