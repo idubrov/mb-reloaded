@@ -75,7 +75,7 @@ impl KeysConfig {
     // FIXME: Actually, provide some defaults for players
     let keys = load_keys_internal(game_dir)
       .or_else(|| load_keys_legacy(game_dir))
-      .unwrap_or_else(Default::default);
+      .unwrap_or_else(default_keys);
     KeysConfig { keys }
   }
 
@@ -93,6 +93,37 @@ impl KeysConfig {
     std::fs::write(file, &buf)?;
     Ok(())
   }
+}
+
+fn default_keys() -> [KeyBindings; 4] {
+  [
+    KeyBindings {
+      keys: [
+        Some(Scancode::A),
+        Some(Scancode::D),
+        Some(Scancode::W),
+        Some(Scancode::S),
+        Some(Scancode::Z),
+        Some(Scancode::Tab),
+        Some(Scancode::LCtrl),
+        Some(Scancode::LShift),
+      ],
+    },
+    KeyBindings {
+      keys: [
+        Some(Scancode::J),
+        Some(Scancode::L),
+        Some(Scancode::I),
+        Some(Scancode::K),
+        Some(Scancode::Num7),
+        Some(Scancode::Num0),
+        Some(Scancode::Num8),
+        Some(Scancode::Num9),
+      ],
+    },
+    KeyBindings::default(),
+    KeyBindings::default(),
+  ]
 }
 
 /// Load key assignments from a new configuration file
