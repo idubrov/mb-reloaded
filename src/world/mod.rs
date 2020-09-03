@@ -81,7 +81,7 @@ impl<'p> World<'p> {
     // Initialize players health and drilling power
     for (player_idx, player) in players.iter_mut().enumerate() {
       let actor = &mut actors[player_idx];
-      actor.max_health = 100 + 100 * player.inventory[Equipment::Armor];
+      actor.max_health = player.initial_health();
       actor.health = actor.max_health;
       actor.drilling = 1
         + player.inventory[Equipment::SmallPickaxe]

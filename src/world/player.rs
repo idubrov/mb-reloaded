@@ -3,6 +3,14 @@ use crate::options::Options;
 use crate::roster::RosterInfo;
 use crate::world::equipment::Equipment;
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum GlyphCheat {
+  /// Render player as a slime
+  Slime,
+  /// Don't render player at all!
+  Invisible,
+}
+
 /// Component corresponding to the active player
 #[derive(Default)]
 pub struct PlayerComponent {
@@ -28,7 +36,7 @@ pub struct PlayerComponent {
 
 impl PlayerComponent {
   pub fn new(name: String, keys: KeyBindings, options: &Options) -> Self {
-    PlayerComponent {
+    let mut player = PlayerComponent {
       stats: RosterInfo {
         name,
         ..Default::default()
@@ -36,13 +44,56 @@ impl PlayerComponent {
       keys,
       cash: u32::from(options.cash),
       ..Default::default()
+    };
+
+    // Apply some of the cheat codes. Note that we also allow cheats in a single player game (contrary to the original game).
+    match player.stats.name.as_str() {
+      "Lottery" => {
+        player.cash = 50000;
+      }
+      "Skitso" => {
+        for equipment in Equipment::all_equipment() {
+          match equipment {
+            Equipment::Armor => {}
+            Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill => {
+              player.inventory[equipment] = 1;
+            }
+            _ => {
+              player.inventory[equipment] = 50;
+            }
+          }
+        }
+      }
+      "Pyroman" => {
+        player.inventory[Equipment::Flamethrower] = 1000;
+      }
+      _ => {}
     }
+    player
   }
 
   pub fn initial_drilling_power(&self) -> u16 {
     1 + self.inventory[Equipment::SmallPickaxe]
       + 3 * self.inventory[Equipment::LargePickaxe]
       + 5 * self.inventory[Equipment::Drill]
+  }
+
+  pub fn initial_health(&self) -> u16 {
+    // Cheat code -- almost invulnerable
+    if self.stats.name == "Rambo" {
+      32000
+    } else {
+      100 + 100 * self.inventory[Equipment::Armor]
+    }
+  }
+
+  /// Return an override for glyph that should be rendered for this player
+  pub fn glyph_cheat(&self) -> Option<GlyphCheat> {
+    match self.stats.name.as_str() {
+      "Invis" => Some(GlyphCheat::Invisible),
+      "Mutation" => Some(GlyphCheat::Slime),
+      _ => None,
+    }
   }
 }
 

@@ -8,9 +8,9 @@ use crate::menu::shop::ShopResult;
 use crate::options::WinCondition;
 use crate::roster::PlayersRoster;
 use crate::settings::GameSettings;
-use crate::world::actor::ActorComponent;
+use crate::world::actor::{ActorComponent, ActorKind};
 use crate::world::map::{LevelInfo, LevelMap, MapValue, DIRT_BORDER_BITMAP, MAP_COLS, MAP_ROWS};
-use crate::world::player::PlayerComponent;
+use crate::world::player::{GlyphCheat, PlayerComponent};
 use crate::world::position::{Cursor, Direction};
 use crate::world::{Maps, SplatterKind, Update, World};
 use crate::Application;
@@ -364,8 +364,9 @@ impl Application<'_> {
         for update in &world.update.queue {
           match *update {
             Update::Actor(actor, digging) => {
+              let cheat = world.players[actor].glyph_cheat();
               let actor = &world.actors[actor];
-              self.render_actor(canvas, actor, digging)?;
+              self.render_actor(canvas, actor, cheat, digging)?;
             }
             Update::Map(cursor) => {
               self.reveal_map_square(canvas, cursor, &mut world.maps)?;
@@ -439,8 +440,13 @@ impl Application<'_> {
       canvas.fill_rect(Rect::new(10, 40, 620, 430)).map_err(SdlError)?;
     } else {
       // Render actors
-      for actor in &world.actors {
-        self.render_actor(canvas, actor, Digging::Hands)?;
+      for (idx, actor) in world.actors.iter().enumerate() {
+        let cheat = if idx < world.players.len() {
+          world.players[idx].glyph_cheat()
+        } else {
+          None
+        };
+        self.render_actor(canvas, actor, cheat, Digging::Hands)?;
       }
     }
 
@@ -697,6 +703,7 @@ impl Application<'_> {
     &self,
     canvas: &mut WindowCanvas,
     actor: &ActorComponent,
+    cheat: Option<GlyphCheat>,
     digging: Digging,
   ) -> Result<(), anyhow::Error> {
     let phase = match actor.animation / 5 {
@@ -711,7 +718,14 @@ impl Application<'_> {
 
     let pos_x = i32::from(actor.pos.x) - 5;
     let pos_y = i32::from(actor.pos.y) - 5;
-    let glyph = Glyph::Monster(actor.kind, actor.facing, digging, phase);
+    // Check for glyph-related cheat codes
+
+    let kind = match cheat {
+      None => actor.kind,
+      Some(GlyphCheat::Slime) => ActorKind::Slime,
+      Some(GlyphCheat::Invisible) => return Ok(()),
+    };
+    let glyph = Glyph::Monster(kind, actor.facing, digging, phase);
     self.glyphs.render(canvas, pos_x, pos_y, glyph)?;
     Ok(())
   }
