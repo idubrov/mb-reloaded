@@ -8,6 +8,7 @@ use sdl2::mixer::{Music, AUDIO_S16LSB};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
+use sdl2::surface::Surface;
 use sdl2::video::WindowContext;
 use sdl2::EventPump;
 use std::path::{Path, PathBuf};
@@ -43,12 +44,21 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   ) -> Result<(), anyhow::Error> {
     let sdl_context = sdl2::init().map_err(SdlError)?;
     let video = sdl_context.video().map_err(SdlError)?;
-    let window = video
+    let mut window = video
       .window("MineBombers Reloaded", SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
       .position_centered()
       .allow_highdpi()
       .resizable()
       .build()?;
+
+    // Set application icon, we chop it off one of the game images
+    let data = std::fs::read(game_dir.join("TITLEBE.SPY"))?;
+    let mut spy = crate::images::decode_spy(SCREEN_WIDTH, SCREEN_HEIGHT, &data)?;
+    let from = ((SCREEN_WIDTH * 305 + 265) * 3) as usize;
+    let surface =
+      Surface::from_data(&mut spy.image[from..], 96, 96, 3 * SCREEN_WIDTH, PixelFormatEnum::RGB24).map_err(SdlError)?;
+    window.set_icon(&surface);
+
     let mut canvas = window.into_canvas().build()?;
     let events = sdl_context.event_pump().map_err(SdlError)?;
     let texture_creator = canvas.texture_creator();
