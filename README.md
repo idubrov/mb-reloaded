@@ -1,6 +1,6 @@
 # RIIR MineBombers
 
-This project is re-implementation of the classic MineBombers 3.11 in Rust. It uses original resources, but runs a new, Rust binary.
+This project is re-implementation of the classic MineBombers 3.11 in Rust. It uses original resources (which you can [download] for free), but runs a new, Rust binary.
 
 Running the game:
 
