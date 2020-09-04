@@ -364,7 +364,11 @@ impl Application<'_> {
         for update in &world.update.queue {
           match *update {
             Update::Actor(actor, digging) => {
-              let cheat = world.players[actor].glyph_cheat();
+              let cheat = if actor < world.players.len() {
+                world.players[actor].glyph_cheat()
+              } else {
+                None
+              };
               let actor = &world.actors[actor];
               self.render_actor(canvas, actor, cheat, digging)?;
             }
