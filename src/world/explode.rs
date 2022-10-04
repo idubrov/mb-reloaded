@@ -215,7 +215,7 @@ impl World<'_> {
       }
       MapValue::Biomass => {
         let mut rng = rand::thread_rng();
-        let clock = rng.gen_range(1, 141);
+        let clock = rng.gen_range(1..141);
         self.maps.timer[cursor] = clock;
 
         let dir = *[Direction::Left, Direction::Right, Direction::Up, Direction::Down]
@@ -252,8 +252,8 @@ impl World<'_> {
       let mut next = None;
       for _ in 0..6 {
         // Note that ranges are not symmetric as per original game!
-        let delta_row = rng.gen_range(-4, 4);
-        let delta_col = rng.gen_range(-4, 4);
+        let delta_row = rng.gen_range(-4..4);
+        let delta_col = rng.gen_range(-4..4);
         if let Some(cur) = cursor.offset(delta_row, delta_col) {
           let v = self.maps.level[cur];
           // FIXME: verify: cannot jump on blood; cannot jump on brick; cannot jump on cracked stone
@@ -273,7 +273,7 @@ impl World<'_> {
       self.maps.hits[cursor] = 0;
       self.maps.hits[next] = jumps - 1;
       self.update.update_cell(next);
-      self.maps.timer[next] = rng.gen_range(1, 181);
+      self.maps.timer[next] = rng.gen_range(1..181);
     }
   }
 
@@ -286,12 +286,12 @@ impl World<'_> {
 
     self.effects.play(SoundEffect::Explos1, 11000, cursor);
 
-    let from = rng.gen_range(0, 5);
+    let from = rng.gen_range(0..5);
     for _ in from..15 {
       let center = loop {
         // FIXME: again, non-symmetric
-        let delta_col = rng.gen_range(-10, 10);
-        let delta_row = rng.gen_range(-10, 10);
+        let delta_col = rng.gen_range(-10..10);
+        let delta_row = rng.gen_range(-10..10);
         if let Some(next) = cursor.offset(delta_row, delta_col) {
           break next;
         }

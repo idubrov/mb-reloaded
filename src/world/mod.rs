@@ -635,9 +635,9 @@ impl<'p> World<'p> {
       }
     } else if value == MapValue::WeaponsCrate {
       let mut rng = rand::thread_rng();
-      match rng.gen_range(0, 5) {
+      match rng.gen_range(0..5) {
         0 => {
-          let cnt = rng.gen_range(1, 3);
+          let cnt = rng.gen_range(1..3);
           let weapon = *[
             Equipment::AtomicBomb,
             Equipment::Grenade,
@@ -651,7 +651,7 @@ impl<'p> World<'p> {
           }
         }
         1 => {
-          let cnt = rng.gen_range(1, 6);
+          let cnt = rng.gen_range(1..6);
           let weapon = *[
             Equipment::Napalm,
             Equipment::LargeCrucifix,
@@ -668,7 +668,7 @@ impl<'p> World<'p> {
           }
         }
         _ => {
-          let cnt = rng.gen_range(3, 13);
+          let cnt = rng.gen_range(3..13);
           let weapon = *[
             Equipment::SmallBomb,
             Equipment::BigBomb,
@@ -731,7 +731,7 @@ impl<'p> World<'p> {
       let mut exit = if teleport_count == 1 {
         0
       } else {
-        let mut exit = rng.gen_range(0, teleport_count - 1);
+        let mut exit = rng.gen_range(0..(teleport_count - 1));
         if exit >= entrance_idx {
           exit += 1;
         }
@@ -926,7 +926,7 @@ impl<'p> World<'p> {
     actor.animation %= 30;
     if digging == Digging::Pickaxe && actor.animation == 16 {
       let mut rng = rand::thread_rng();
-      let frequency = rng.gen_range(11000, 11100);
+      let frequency = rng.gen_range(11000..11100);
       self.effects.play(SoundEffect::Picaxe, frequency, cursor);
     }
     actor.animation += 1;
@@ -1102,11 +1102,11 @@ fn item_placement_timer(item: Equipment) -> u16 {
     Equipment::Dynamite => 80,
     Equipment::JumpingBomb => {
       let mut rng = rand::thread_rng();
-      rng.gen_range(80, 160)
+      rng.gen_range(80..160)
     }
     Equipment::Biomass => {
       let mut rng = rand::thread_rng();
-      rng.gen_range(0, 80)
+      rng.gen_range(0..80)
     }
     Equipment::Grenade => 1,
     _ => 100,
@@ -1115,7 +1115,7 @@ fn item_placement_timer(item: Equipment) -> u16 {
 
 fn item_placement_hits(item: Equipment) -> i32 {
   match item {
-    Equipment::JumpingBomb => rand::thread_rng().gen_range(7, 27),
+    Equipment::JumpingBomb => rand::thread_rng().gen_range(7..27),
     Equipment::Biomass => 400,
     Equipment::Grenade => 0,
     // Note that this is also "push" difficulty and in `interact_map` we actually set it to 24
@@ -1320,7 +1320,7 @@ fn check_fuse_went_out(value: MapValue) -> Option<MapValue> {
     _ => return None,
   };
   let mut rnd = rand::thread_rng();
-  if rnd.gen_range(0, 1000) <= 10 {
+  if rnd.gen_range(0..1000) <= 10 {
     Some(replacement)
   } else {
     None

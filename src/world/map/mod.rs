@@ -155,7 +155,7 @@ impl Map<MapValue> {
     };
     for cursor in Cursor::all() {
       if self[cursor] == MapValue::Biomass {
-        map[cursor] = rng.gen_range(0, 30);
+        map[cursor] = rng.gen_range(0..30);
       }
     }
     map

@@ -606,15 +606,15 @@ impl Application<'_> {
     let pos = cursor.position();
     loop {
       let (delta_x, delta_y) = match dir {
-        Direction::Left => (-5 - rng.gen_range(0, 3), rng.gen_range(-5, 5)),
-        Direction::Right => (5 + rng.gen_range(0, 3), rng.gen_range(-5, 5)),
-        Direction::Up => (rng.gen_range(-5, 5), -5 - rng.gen_range(0, 3)),
-        Direction::Down => (rng.gen_range(-5, 5), 5 + rng.gen_range(0, 3)),
+        Direction::Left => (-5 - rng.gen_range(0..3), rng.gen_range(-5..5)),
+        Direction::Right => (5 + rng.gen_range(0..3), rng.gen_range(-5..5)),
+        Direction::Up => (rng.gen_range(-5..5), -5 - rng.gen_range(0..3)),
+        Direction::Down => (rng.gen_range(-5..5), 5 + rng.gen_range(0..3)),
       };
       canvas
         .draw_point((i32::from(pos.x) + delta_x, i32::from(pos.y) + delta_y))
         .map_err(SdlError)?;
-      if rng.gen_range(0, 10) == 0 {
+      if rng.gen_range(0..10) == 0 {
         break;
       }
     }

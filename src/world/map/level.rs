@@ -113,7 +113,7 @@ impl LevelMap {
 
     let exit_count = Cursor::all().filter(|cur| map[*cur] == MapValue::Exit).count();
     let mut rng = rand::thread_rng();
-    let selected = rng.gen_range(0, exit_count);
+    let selected = rng.gen_range(0..exit_count);
     let mut idx = 0;
     for cur in Cursor::all() {
       if map[cur] == MapValue::Exit {
@@ -133,7 +133,7 @@ impl LevelMap {
   /// game, but not exactly the same.
   fn generate_random_stone(&mut self) {
     let mut rng = rand::thread_rng();
-    for _ in 0..rng.gen_range(29, 40) {
+    for _ in 0..rng.gen_range(29..40) {
       self.generate_stone_chunk();
     }
   }
@@ -141,10 +141,10 @@ impl LevelMap {
   /// Generate one single stone chunk
   fn generate_stone_chunk(&mut self) {
     let mut rng = rand::thread_rng();
-    let mut col = rng.gen_range(1, MAP_COLS - 1);
-    let mut row = rng.gen_range(1, MAP_ROWS - 1);
+    let mut col = rng.gen_range(1..(MAP_COLS - 1));
+    let mut row = rng.gen_range(1..(MAP_ROWS - 1));
     loop {
-      match rng.gen_range(0, 10) {
+      match rng.gen_range(0..10) {
         0 => {
           self[row][col] = MapValue::Stone1;
         }
@@ -212,7 +212,7 @@ impl LevelMap {
       }
 
       // Randomized exit condition
-      if rng.gen_range(0, 100) > rng.gen_range(93, 103) {
+      if rng.gen_range(0..100) > rng.gen_range(93..103) {
         break;
       }
 
@@ -336,8 +336,8 @@ impl LevelMap {
 
       // Once we placed 20 treasures into stone, we place remaining ones randomly
       if treasures_in_stone > 20 {
-        let col = rng.gen_range(0, MAP_COLS);
-        let row = rng.gen_range(0, MAP_ROWS);
+        let col = rng.gen_range(0..MAP_COLS);
+        let row = rng.gen_range(0..MAP_ROWS);
         self[Cursor::new(row, col)] = item;
       } else {
         let cursor = self.pick_random_coord(MapValue::is_stone);
@@ -351,19 +351,19 @@ impl LevelMap {
   /// Note that original game would also place items on borders, but we don't.
   fn generate_random_items(&mut self) {
     let mut rng = rand::thread_rng();
-    while rng.gen_range(0, 100) > 70 {
+    while rng.gen_range(0..100) > 70 {
       self[random_coord()] = MapValue::Boulder;
     }
 
-    while rng.gen_range(0, 100) > 70 {
+    while rng.gen_range(0..100) > 70 {
       self[random_coord()] = MapValue::WeaponsCrate;
     }
 
-    while rng.gen_range(0, 100) > 65 {
+    while rng.gen_range(0..100) > 65 {
       self[random_coord()] = MapValue::Medikit;
     }
 
-    while rng.gen_range(0, 100) > 70 {
+    while rng.gen_range(0..100) > 70 {
       self[random_coord()] = MapValue::Teleport;
       self[random_coord()] = MapValue::Teleport;
     }
@@ -407,42 +407,42 @@ impl LevelMap {
     let mut rng = rand::thread_rng();
 
     // Top left
-    let rnd = rng.gen_range(4, 10);
+    let rnd = rng.gen_range(4..10);
     for col in 1..=rnd {
       self[1][col] = MapValue::Passage;
     }
-    let rnd = rng.gen_range(4, 10);
+    let rnd = rng.gen_range(4..10);
     for row in 1..=rnd {
       self[row][1] = MapValue::Passage;
     }
 
     // Bottom right
-    let rnd = rng.gen_range(4, 10);
+    let rnd = rng.gen_range(4..10);
     for col in 1..=rnd {
       self[MAP_ROWS - 2][MAP_COLS - 1 - col] = MapValue::Passage;
     }
-    let rnd = rng.gen_range(4, 10);
+    let rnd = rng.gen_range(4..10);
     for row in 1..=rnd {
       self[MAP_ROWS - 1 - row][MAP_COLS - 2] = MapValue::Passage;
     }
 
     if players > 2 {
       // Top right
-      let rnd = rng.gen_range(4, 10);
+      let rnd = rng.gen_range(4..10);
       for col in 1..=rnd {
         self[1][MAP_COLS - 1 - col] = MapValue::Passage;
       }
-      let rnd = rng.gen_range(4, 10);
+      let rnd = rng.gen_range(4..10);
       for row in 1..=rnd {
         self[row][MAP_COLS - 2] = MapValue::Passage;
       }
 
       // Bottom left
-      let rnd = rng.gen_range(4, 10);
+      let rnd = rng.gen_range(4..10);
       for col in 1..=rnd {
         self[MAP_ROWS - 2][col] = MapValue::Passage;
       }
-      let rnd = rng.gen_range(4, 10);
+      let rnd = rng.gen_range(4..10);
       for row in 1..=rnd {
         self[MAP_ROWS - 1 - row][1] = MapValue::Passage;
       }
@@ -452,8 +452,8 @@ impl LevelMap {
 
 fn random_coord() -> Cursor {
   let mut rng = rand::thread_rng();
-  let col = rng.gen_range(1, MAP_COLS - 1);
-  let row = rng.gen_range(1, MAP_ROWS - 1);
+  let col = rng.gen_range(1..(MAP_COLS - 1));
+  let row = rng.gen_range(1..(MAP_ROWS - 1));
   Cursor::new(row, col)
 }
 
@@ -875,7 +875,7 @@ fn random_offset(mut coord: u16, max: u16) -> u16 {
   } else {
     // Apply random offset -1, 0 or 1.
     coord += 1;
-    coord -= rng.gen_range(0, 3);
+    coord -= rng.gen_range(0..3);
   }
   coord
 }

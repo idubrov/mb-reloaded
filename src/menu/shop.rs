@@ -46,7 +46,7 @@ impl Prices {
     // free market?
     let percentage = if free_market {
       let mut rng = rand::thread_rng();
-      130u32 - rng.gen_range(0, 60)
+      130u32 - rng.gen_range(0..60)
     } else {
       100u32
     };

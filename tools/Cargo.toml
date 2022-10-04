@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 mb-reloaded = { path = ".." }
-anyhow = "1.0.31"
-png = "0.16.3"
-rand = "0.7.3"
-structopt = "0.3.14"
-thiserror = "1.0.18"
+anyhow = "1.0.65"
+png = "0.17.6"
+rand = "0.8.5"
+structopt = "0.3.26"
+thiserror = "1.0.37"

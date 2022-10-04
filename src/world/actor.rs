@@ -148,7 +148,7 @@ impl ActorComponent {
     let mut rng = rand::thread_rng();
     let (delta_row, delta_col) = cursor.distance(bomb);
 
-    if delta_col > delta_row || rng.gen_range(0, 100) < 3 {
+    if delta_col > delta_row || rng.gen_range(0..100) < 3 {
       self.facing = match cursor.col.cmp(&bomb.col) {
         Ordering::Greater => Direction::Right,
         Ordering::Less => Direction::Left,
