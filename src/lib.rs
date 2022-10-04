@@ -94,7 +94,7 @@ impl<'textures> Application<'textures> {
       music1: ctx.load_music("HUIPPE.S3M")?,
       music2: ctx.load_music("OEKU.S3M")?,
       effects: SoundEffects::new(ctx.game_dir())?,
-      registered: load_registered(ctx.game_dir()).unwrap_or_else(String::new),
+      registered: load_registered(ctx.game_dir()).unwrap_or_default(),
       avatars: [
         Avatars {
           win: ctx.load_ppm("SINVOIT.PPM")?,

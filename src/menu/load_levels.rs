@@ -258,7 +258,7 @@ impl Application<'_> {
     match level {
       LevelInfo::Random => Ok(None),
       LevelInfo::File { map, .. } => Ok(Some(generate_preview(
-        &map,
+        map,
         texture_creator,
         &self.levels_menu.palette,
       )?)),
@@ -268,15 +268,13 @@ impl Application<'_> {
 
 fn find_levels(path: &Path) -> Result<Vec<Rc<LevelInfo>>, anyhow::Error> {
   let mut result = Vec::new();
-  for entry in path.read_dir()? {
-    if let Ok(entry) = entry {
-      let path = entry.path();
-      if path.is_file() && path.extension().map_or(false, |f| f == "mne" || f == "MNE") {
-        let data = std::fs::read(&path)?;
-        if let Ok(map) = LevelMap::from_file_map(data) {
-          let name = path.file_stem().unwrap().to_string_lossy().to_uppercase();
-          result.push(Rc::new(LevelInfo::File { name, map }));
-        }
+  for entry in (path.read_dir()?).flatten() {
+    let path = entry.path();
+    if path.is_file() && path.extension().map_or(false, |f| f == "mne" || f == "MNE") {
+      let data = std::fs::read(&path)?;
+      if let Ok(map) = LevelMap::from_file_map(data) {
+        let name = path.file_stem().unwrap().to_string_lossy().to_uppercase();
+        result.push(Rc::new(LevelInfo::File { name, map }));
       }
     }
   }

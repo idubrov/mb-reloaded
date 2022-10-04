@@ -16,7 +16,7 @@ impl Application<'_> {
   ) -> Result<(), anyhow::Error> {
     ctx.with_render_context(|canvas| {
       canvas.copy(&self.keys.texture, None, None).map_err(SdlError)?;
-      self.render_configured_keys(canvas, &keys_config)?;
+      self.render_configured_keys(canvas, keys_config)?;
       Ok(())
     })?;
     ctx.animate(Animation::FadeUp, 7)?;
@@ -67,7 +67,7 @@ impl Application<'_> {
           let color = self.keys.palette[COLORS[layer]];
 
           let y = key_pos_y(player, key);
-          let text = format!("Player {} {:11}: ", player + 1, key.to_string());
+          let text = format!("Player {} {:11}: ", player + 1, key);
           self.font.render(canvas, 180 + OFFSETS[layer], y, color, &text)?;
 
           // Don't render "shadow" for keys

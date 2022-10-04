@@ -18,7 +18,7 @@ pub struct KeysConfig {
 /// Key binding types. Note that this enum is ordered the same way we save them to the configuration
 /// file and also the redefine menu.
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, TryFromPrimitive)]
+#[derive(Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 pub enum Key {
   Left,
   Right,

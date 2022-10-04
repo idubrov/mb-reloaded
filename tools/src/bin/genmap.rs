@@ -1,13 +1,14 @@
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use clap::Parser;
 
 /// Generate random map file
-#[derive(structopt::StructOpt)]
+#[derive(Parser)]
 struct Args {
   /// Map file to save result
-  #[structopt(parse(from_os_str))]
+  #[arg(long, short, value_name = "FILE")]
   output: PathBuf,
-  #[structopt(long, short, default_value = "75")]
+  #[arg(long, short, default_value = "75")]
   treasures: u8,
 }
 
@@ -23,7 +24,7 @@ enum ToolError {
 
 /// Convert spy file into PNG
 fn main() -> Result<(), anyhow::Error> {
-  let args: Args = structopt::StructOpt::from_args();
+  let args: Args = Args::parse();
 
   let map = mb_reloaded::world::map::LevelMap::random_map(args.treasures);
   let data = map.to_file_map();

@@ -341,8 +341,10 @@ impl Application<'_> {
       ctx.present()?;
     }
 
-    let mut new_player = RosterInfo::default();
-    new_player.name = name;
+    let new_player = RosterInfo {
+      name,
+      ..Default::default()
+    };
     state.roster.players[usize::from(player_idx)] = Some(new_player);
 
     // Refresh names panel

@@ -9,5 +9,5 @@ mb-reloaded = { path = ".." }
 anyhow = "1.0.65"
 png = "0.17.6"
 rand = "0.8.5"
-structopt = "0.3.26"
+clap = { version = "4.0.9", features = [ "derive" ] }
 thiserror = "1.0.37"

@@ -2,16 +2,17 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use clap::Parser;
 
 /// Convert SPY file into a PNG image
-#[derive(structopt::StructOpt)]
+#[derive(Parser)]
 struct Args {
   /// SPY file to load
-  #[structopt(parse(from_os_str))]
+  #[arg(long, short, value_name = "FILE")]
   input: PathBuf,
 
   /// PNG file to save result
-  #[structopt(parse(from_os_str))]
+  #[arg(long, short, value_name = "FILE")]
   output: PathBuf,
 }
 
@@ -38,7 +39,7 @@ const HEIGHT: usize = 480;
 
 /// Convert spy file into PNG
 fn main() -> Result<(), anyhow::Error> {
-  let args: Args = structopt::StructOpt::from_args();
+  let args: Args = Args::parse();
 
   let data = std::fs::read(&args.input).map_err(|source| ToolError::InputReadError {
     path: args.input.to_owned(),
@@ -62,9 +63,9 @@ fn write_image(path: &Path, image: &[u8]) -> Result<(), anyhow::Error> {
   let file = File::create(path)?;
   let buf = BufWriter::new(file);
   let mut encoder = png::Encoder::new(buf, WIDTH as u32, HEIGHT as u32);
-  encoder.set_color(png::ColorType::RGB);
+  encoder.set_color(png::ColorType::Rgb);
   encoder.set_depth(png::BitDepth::Eight);
   let mut writer = encoder.write_header()?;
-  writer.write_image_data(&image)?;
+  writer.write_image_data(image)?;
   Ok(())
 }

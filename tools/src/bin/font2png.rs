@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use clap::Parser;
 
 #[derive(Debug, Error)]
 enum ToolError {
@@ -22,20 +23,20 @@ enum ToolError {
 }
 
 /// Convert FON file (font) into a PNG image
-#[derive(structopt::StructOpt)]
+#[derive(Parser)]
 struct Args {
   /// FONT file to load
-  #[structopt(parse(from_os_str))]
+  #[arg(long, short, value_name = "FILE")]
   input: PathBuf,
 
   /// PNG file to save result
-  #[structopt(parse(from_os_str))]
+  #[arg(long, short, value_name = "FILE")]
   output: PathBuf,
 }
 
 /// Convert font file into PNG
 fn main() -> Result<(), anyhow::Error> {
-  let args: Args = structopt::StructOpt::from_args();
+  let args: Args = Args::parse();
 
   let data = std::fs::read(&args.input).map_err(|source| ToolError::InputReadError {
     path: args.input.to_owned(),
@@ -60,9 +61,9 @@ fn write_image(path: &Path, image: &[u8]) -> Result<(), anyhow::Error> {
   let file = File::create(path)?;
   let buf = BufWriter::new(file);
   let mut encoder = png::Encoder::new(buf, 16 * 8, 16 * 8);
-  encoder.set_color(png::ColorType::RGBA);
+  encoder.set_color(png::ColorType::Rgba);
   encoder.set_depth(png::BitDepth::Eight);
   let mut writer = encoder.write_header()?;
-  writer.write_image_data(&image)?;
+  writer.write_image_data(image)?;
   Ok(())
 }

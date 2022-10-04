@@ -619,7 +619,7 @@ impl Expansion for NapalmExpansion {
   const EXPLODE_ENTITIES: bool = true;
 
   fn can_expand(&self, value: MapValue, _next: Cursor, _direction: Direction) -> bool {
-    match value {
+    matches!(value,
       MapValue::Passage
       | MapValue::Smoke1
       | MapValue::Smoke2
@@ -630,9 +630,8 @@ impl Expansion for NapalmExpansion {
       | MapValue::MonsterSmoke1
       | MapValue::MonsterSmoke2
       | MapValue::Plastic
-      | MapValue::SlimeCorpse => true,
-      _ => false,
-    }
+      | MapValue::SlimeCorpse
+    )
   }
 
   fn expand(&self, world: &mut World, cursor: Cursor) {

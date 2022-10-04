@@ -199,7 +199,7 @@ fn look_around<T>(cursor: Cursor, distance: i16, check_location: impl Fn(Cursor)
           Direction::Right => cursor.offset(idx, distance),
         };
 
-        if let Some(target) = offset.and_then(|offset| check_location(offset)) {
+        if let Some(target) = offset.and_then(&check_location) {
           return Some(target);
         }
       }

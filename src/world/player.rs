@@ -3,7 +3,7 @@ use crate::options::Options;
 use crate::roster::RosterInfo;
 use crate::world::equipment::Equipment;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GlyphCheat {
   /// Render player as a slime
   Slime,

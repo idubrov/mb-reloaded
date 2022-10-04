@@ -115,10 +115,10 @@ impl Application<'_> {
 
       // All shop items
       if let Some(left) = &state.left {
-        self.render_all_items(canvas, 0, &left, &state.prices)?;
+        self.render_all_items(canvas, 0, left, &state.prices)?;
       }
       let right = &state.right;
-      self.render_all_items(canvas, 320, &right, &state.prices)?;
+      self.render_all_items(canvas, 320, right, &state.prices)?;
 
       // Preview map
       if let Some(map) = preview_map {

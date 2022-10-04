@@ -459,7 +459,7 @@ fn random_coord() -> Cursor {
 
 /// Enum for all possible map values.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, PartialOrd)]
 pub enum MapValue {
   Map00 = 0x00,
   Map01 = 0x01,
@@ -726,7 +726,7 @@ pub enum MapValue {
 impl MapValue {
   /// Check if value is stone or any of the stone corners
   pub fn is_stone_like(self) -> bool {
-    match self {
+    matches!(self,
       MapValue::Stone1
       | MapValue::Stone2
       | MapValue::Stone3
@@ -736,48 +736,42 @@ impl MapValue {
       | MapValue::StoneBottomLeft
       | MapValue::StoneBottomRight
       | MapValue::StoneLightCracked
-      | MapValue::StoneHeavyCracked => true,
-      _ => false,
-    }
+      | MapValue::StoneHeavyCracked
+    )
   }
 
   /// Check if cell is a stone corner
   pub fn is_stone_corner(self) -> bool {
-    match self {
-      MapValue::StoneTopLeft | MapValue::StoneTopRight | MapValue::StoneBottomLeft | MapValue::StoneBottomRight => true,
-      _ => false,
-    }
+    matches!(self,
+      MapValue::StoneTopLeft | MapValue::StoneTopRight | MapValue::StoneBottomLeft | MapValue::StoneBottomRight
+    )
   }
 
   /// Check if value is stone
   pub fn is_stone(self) -> bool {
-    match self {
-      MapValue::Stone1 | MapValue::Stone2 | MapValue::Stone3 | MapValue::Stone4 => true,
-      _ => false,
-    }
+    matches!(self,
+      MapValue::Stone1 | MapValue::Stone2 | MapValue::Stone3 | MapValue::Stone4
+    )
   }
 
   /// Check if value is sand
   pub fn is_sand(self) -> bool {
-    match self {
-      MapValue::Sand1 | MapValue::Sand2 | MapValue::Sand3 => true,
-      _ => false,
-    }
+    matches!(self,
+      MapValue::Sand1 | MapValue::Sand2 | MapValue::Sand3
+    )
   }
 
   pub fn is_brick_like(self) -> bool {
-    match self {
-      MapValue::Brick | MapValue::BrickLightCracked | MapValue::BrickHeavyCracked => true,
-      _ => false,
-    }
+    matches!(self,
+      MapValue::Brick | MapValue::BrickLightCracked | MapValue::BrickHeavyCracked
+    )
   }
 
   /// Check if value is passable square
   pub fn is_passable(self) -> bool {
-    match self {
-      MapValue::Passage | MapValue::Blood | MapValue::SlimeCorpse => true,
-      _ => false,
-    }
+    matches!(self,
+      MapValue::Passage | MapValue::Blood | MapValue::SlimeCorpse
+    )
   }
 
   /// If map value is a monster, return its actor kind and direction.
@@ -829,7 +823,7 @@ impl MapValue {
   }
 
   pub fn is_bomb(self) -> bool {
-    match self {
+    matches!(self,
       MapValue::SmallBomb1
       | MapValue::SmallBomb2
       | MapValue::SmallBomb3
@@ -856,9 +850,8 @@ impl MapValue {
       | MapValue::GrenadeFlyingDown
       | MapValue::GrenadeFlyingUp
       | MapValue::MetalWallPlaced
-      | MapValue::JumpingBomb => true,
-      _ => false,
-    }
+      | MapValue::JumpingBomb
+    )
   }
 }
 

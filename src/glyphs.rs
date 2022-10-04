@@ -13,7 +13,7 @@ pub struct Glyphs<'t> {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnimationPhase {
   Phase1 = 0,
   Phase2 = 1,
@@ -21,13 +21,13 @@ pub enum AnimationPhase {
   Phase4 = 3,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Digging {
   Hands,
   Pickaxe,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Border {
   Burned,

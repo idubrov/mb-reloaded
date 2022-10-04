@@ -557,7 +557,6 @@ impl<'p> World<'p> {
             self.maps.level[cursor] = MapValue::BrickLightCracked;
           }
           self.update.update_cell(cursor);
-          return;
         }
       } else {
         self.maps.hits[cursor] = 0;
@@ -1126,10 +1125,9 @@ fn item_placement_hits(item: Equipment) -> i32 {
 }
 
 fn is_selectable(item: Equipment) -> bool {
-  match item {
-    Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill | Equipment::Armor => false,
-    _ => true,
-  }
+  matches!(item,
+    Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill | Equipment::Armor
+  )
 }
 
 fn spawn_actors(map: &mut LevelMap, players_count: usize) -> Vec<ActorComponent> {
@@ -1204,13 +1202,13 @@ fn init_players_positions(players: &mut [ActorComponent]) {
   }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SplatterKind {
   Blood,
   Slime,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Update {
   Actor(EntityIndex, Digging),
   Map(Cursor),

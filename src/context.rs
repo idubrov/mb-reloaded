@@ -98,7 +98,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
 
   pub fn render_texture(&mut self, texture: &Texture) -> Result<(), anyhow::Error> {
     self.with_render_context(|canvas| {
-      canvas.copy(&texture, None, None).map_err(SdlError)?;
+      canvas.copy(texture, None, None).map_err(SdlError)?;
       Ok(())
     })?;
     Ok(())
@@ -108,7 +108,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   pub fn load_spy(&self, file_name: &str) -> Result<TexturePalette<'textures>, anyhow::Error> {
     let path = self.game_dir.join(file_name);
     Ok(crate::images::load_texture(
-      &self.texture_creator,
+      self.texture_creator,
       &path,
       TextureFormat::SPY,
     )?)
@@ -118,7 +118,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   pub fn load_ppm(&self, file_name: &str) -> Result<TexturePalette<'textures>, anyhow::Error> {
     let path = self.game_dir.join(file_name);
     Ok(crate::images::load_texture(
-      &self.texture_creator,
+      self.texture_creator,
       &path,
       TextureFormat::PPM,
     )?)
@@ -127,7 +127,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
   /// Load fonts from a given path
   pub fn load_font(&self, file_name: &str) -> Result<Font<'textures>, anyhow::Error> {
     let path = self.game_dir.join(file_name);
-    Ok(crate::fonts::load_font(&self.texture_creator, &path)?)
+    Ok(crate::fonts::load_font(self.texture_creator, &path)?)
   }
 
   pub fn load_music(&self, file_name: &str) -> Result<Music<'static>, anyhow::Error> {
@@ -224,7 +224,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     }
   }
 
-  pub fn poll_iter<'ev>(&'ev mut self) -> impl Iterator<Item = Event> + 'ev {
+  pub fn poll_iter(&mut self) -> impl Iterator<Item = Event> + '_ {
     self.events.poll_iter()
   }
 

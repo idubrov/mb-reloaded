@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 
 const SINGLE_PLAYER_ROUNDS: u16 = 15;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RoundEnd {
   /// Round end (all gold collected in multiplayer, all opponents are dead, etc)
   Round,
@@ -760,7 +760,7 @@ fn border_offset(dir: Direction) -> (i32, i32) {
   }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerWin {
   Lose,
   Draw,
@@ -791,7 +791,7 @@ fn update_player_stats(
 ) -> Result<(), anyhow::Error> {
   let mut roster = PlayersRoster::load(game_dir)?;
   for idx in 0..players.len() {
-    let is_win = compute_score(&players, idx, win) == PlayerWin::Win;
+    let is_win = compute_score(players, idx, win) == PlayerWin::Win;
     let mut stats = &mut players[idx].stats;
     let tournament = stats.tournaments as usize;
     let history_len = stats.history.len();
@@ -802,7 +802,7 @@ fn update_player_stats(
     }
 
     if let Some(roster_stats) = roster.players[usize::from(player_to_roster[idx])].as_mut() {
-      roster_stats.update_stats_tournament(&stats);
+      roster_stats.update_stats_tournament(stats);
     }
   }
   roster.save(game_dir)?;

@@ -13,7 +13,7 @@ pub struct SampleLoadingFailed {
   source: anyhow::Error,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SoundEffect {
   Kili,
   Picaxe,
