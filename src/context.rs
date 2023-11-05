@@ -206,6 +206,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
         Event::KeyDown {
           scancode: Some(code),
           keycode: Some(key),
+          repeat: false,
           ..
         } => return InputEvent::KeyPress(code, key),
         Event::TextInput { text, .. } => return InputEvent::TextInput(text),

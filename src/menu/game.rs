@@ -792,7 +792,7 @@ fn update_player_stats(
   let mut roster = PlayersRoster::load(game_dir)?;
   for idx in 0..players.len() {
     let is_win = compute_score(players, idx, win) == PlayerWin::Win;
-    let mut stats = &mut players[idx].stats;
+    let stats = &mut players[idx].stats;
     let tournament = stats.tournaments as usize;
     let history_len = stats.history.len();
     stats.history[tournament % history_len] = 123;

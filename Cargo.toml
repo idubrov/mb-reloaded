@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.65"
 byteorder = "1.4.3"
-num_enum = "0.5.7"
+num_enum = "0.7.0"
 thiserror = "1.0.37"
 rand = "0.8.5"
 ref-cast = "1.0.9"

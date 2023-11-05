@@ -178,7 +178,7 @@ impl<'p> World<'p> {
       }
     }
     if let Some(direction) = direction {
-      let mut actor = &mut self.actors[player];
+      let actor = &mut self.actors[player];
       actor.facing = direction;
       actor.moving = true;
     }
@@ -753,7 +753,7 @@ impl<'p> World<'p> {
         }
       }
     } else if value == MapValue::Exit {
-      if self.is_single_player() {
+      if self.is_single_player() && entity == 0 {
         self.exited = true;
       }
     } else if value == MapValue::Medikit {
@@ -1125,7 +1125,7 @@ fn item_placement_hits(item: Equipment) -> i32 {
 }
 
 fn is_selectable(item: Equipment) -> bool {
-  matches!(item,
+  !matches!(item,
     Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill | Equipment::Armor
   )
 }
