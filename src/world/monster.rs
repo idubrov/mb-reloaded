@@ -76,6 +76,7 @@ impl World<'_> {
   fn clone_can_chase(&self, monster_kind: ActorKind, target_player: Player) -> bool {
     return match monster_kind {
       ActorKind::Clone(clone_player) if clone_player != target_player && !self.campaign_mode => true,
+      ActorKind::Clone(_) => false,
       _ => true,
     };
   }
