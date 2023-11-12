@@ -58,8 +58,8 @@ impl Application<'_> {
     }
 
     if campaign_mode {
-      // In single player, we start with 250
-      players[0].cash = 250;
+      // In single player, we start with 250 for each player
+      players[0].cash = 250 * u32::from(settings.options.players);
       players[0].lives = 3;
     }
 
@@ -282,7 +282,8 @@ impl Application<'_> {
     if let Some(cash) = shared_cash {
       players[0].cash = cash;
     }
-    let mut world = World::create(level, players, darkness, settings.options.bomb_damage, settings.options.campaign_mode);
+    let campaign_mode = players.len() == 1 || settings.options.campaign_mode;
+    let mut world = World::create(level, players, darkness, settings.options.bomb_damage, campaign_mode);
 
     sdl2::mixer::Music::halt();
     // FIXME: start playing random music from the level music; also, don't play shop music?

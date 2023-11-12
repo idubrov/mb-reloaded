@@ -77,8 +77,7 @@ impl SoundEffectsQueue {
 pub type EntityIndex = usize;
 
 impl<'p> World<'p> {
-  pub fn create(mut level: LevelMap, players: &'p mut [PlayerComponent], darkness: bool, bomb_damage: u8, force_campaign: bool) -> Self {
-    let campaign_mode = players.len() == 1 || force_campaign;
+  pub fn create(mut level: LevelMap, players: &'p mut [PlayerComponent], darkness: bool, bomb_damage: u8, campaign_mode: bool) -> Self {
     let mut actors = spawn_actors(&mut level, players.len(), campaign_mode);
 
     // Initialize players health and drilling power
@@ -86,10 +85,7 @@ impl<'p> World<'p> {
       let actor = &mut actors[player_idx];
       actor.max_health = player.initial_health();
       actor.health = actor.max_health;
-      actor.drilling = 1
-        + player.inventory[Equipment::SmallPickaxe]
-        + 3 * player.inventory[Equipment::LargePickaxe]
-        + 5 * player.inventory[Equipment::Drill];
+      actor.drilling = 1 + player.initial_drilling_power();
 
       // Reset player armor count
       player.inventory[Equipment::Armor] = 0;

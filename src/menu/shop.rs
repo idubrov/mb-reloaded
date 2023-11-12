@@ -234,7 +234,7 @@ impl Application<'_> {
       .fill_rect(Rect::new(35 + offset_x, 58, 7 * 8, 8))
       .map_err(SdlError)?;
 
-    let power = state.entity.initial_drilling_power();
+    let power = 1 + state.entity.initial_drilling_power();
     self
       .font
       .render(canvas, 35 + offset_x, 16, palette[1], &state.entity.stats.name)?;
