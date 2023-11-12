@@ -28,6 +28,8 @@ pub struct Maps {
 }
 
 pub struct World<'p> {
+  /// If game is a campaign mode
+  pub campaign_mode: bool,
   pub maps: Maps,
   pub players: &'p mut [PlayerComponent],
   // First `players.len()` actors are players
@@ -75,8 +77,9 @@ impl SoundEffectsQueue {
 pub type EntityIndex = usize;
 
 impl<'p> World<'p> {
-  pub fn create(mut level: LevelMap, players: &'p mut [PlayerComponent], darkness: bool, bomb_damage: u8) -> Self {
-    let mut actors = spawn_actors(&mut level, players.len());
+  pub fn create(mut level: LevelMap, players: &'p mut [PlayerComponent], darkness: bool, bomb_damage: u8, force_campaign: bool) -> Self {
+    let campaign_mode = players.len() == 1 || force_campaign;
+    let mut actors = spawn_actors(&mut level, players.len(), campaign_mode);
 
     // Initialize players health and drilling power
     for (player_idx, player) in players.iter_mut().enumerate() {
@@ -100,6 +103,7 @@ impl<'p> World<'p> {
         fog: FogMap::default(),
         level,
       },
+      campaign_mode,
       players,
       actors,
       flash: false,
@@ -116,11 +120,6 @@ impl<'p> World<'p> {
   /// Get player component if given entity is a player
   pub fn player_mut(&mut self, entity: EntityIndex) -> Option<&mut PlayerComponent> {
     self.players.get_mut(entity)
-  }
-
-  // If game is a single player game
-  pub fn is_single_player(&self) -> bool {
-    self.players.len() == 1
   }
 
   /// Count alive players
@@ -198,8 +197,8 @@ impl<'p> World<'p> {
     }
 
     if self.round_counter % 5 == 0 {
-      if self.is_single_player() {
-        if self.actors[0].is_dead {
+      if self.campaign_mode {
+        if self.alive_players() == 0 {
           if self.end_round_counter == 0 {
             self.players[0].lives -= 1;
             self.update.update_player_lives();
@@ -226,7 +225,7 @@ impl<'p> World<'p> {
 
     self.animate_monsters();
 
-    if self.round_counter % 20 == 0 && !self.is_single_player() && self.gold_remaining() == 0 {
+    if self.round_counter % 20 == 0 && !self.campaign_mode && self.gold_remaining() == 0 {
       self.end_round_counter += 20;
     }
     self.round_counter += 1;
@@ -240,7 +239,7 @@ impl<'p> World<'p> {
       player.cash = (107 * player.cash + 50) / 100;
     }
 
-    if self.is_single_player() {
+    if self.campaign_mode {
       // In single player, we never lose money, even if we die
       self.players[0].cash += self.actors[0].accumulated_cash;
     } else {
@@ -579,12 +578,17 @@ impl<'p> World<'p> {
       let actor = &self.actors[entity];
       if let ActorKind::Clone(player) = actor.kind {
         let player = player as usize;
+        let cash_player = if self.campaign_mode { 0 } else { player };
         self.actors[player].drilling += drill_value;
-        self.actors[player].accumulated_cash += gold_value;
+        self.actors[cash_player].accumulated_cash += gold_value;
       }
 
       self.actors[entity].drilling += drill_value;
-      self.actors[entity].accumulated_cash += gold_value;
+      let actor = &self.actors[entity];
+      if let ActorKind::Player(_) = actor.kind {
+        let cash_player = if self.campaign_mode { 0 } else { entity };
+        self.actors[cash_player].accumulated_cash += gold_value;
+      }
 
       if value >= MapValue::SmallPickaxe && value <= MapValue::Drill {
         self.effects.play(SoundEffect::Picaxe, 11000, cursor);
@@ -753,7 +757,7 @@ impl<'p> World<'p> {
         }
       }
     } else if value == MapValue::Exit {
-      if self.is_single_player() && entity == 0 {
+      if self.campaign_mode && entity < self.players.len() {
         self.exited = true;
       }
     } else if value == MapValue::Medikit {
@@ -785,7 +789,7 @@ impl<'p> World<'p> {
 
       let effective_dmg = match actor.kind {
         // In single player, damage is always 100%
-        ActorKind::Player(_) if self.is_single_player() => dmg,
+        ActorKind::Player(_) if self.campaign_mode => dmg,
         ActorKind::Player(_) => dmg * u16::from(self.bomb_damage) / 100,
         _ => dmg,
       };
@@ -1130,7 +1134,7 @@ fn is_selectable(item: Equipment) -> bool {
   )
 }
 
-fn spawn_actors(map: &mut LevelMap, players_count: usize) -> Vec<ActorComponent> {
+fn spawn_actors(map: &mut LevelMap, players_count: usize, campaign_mode: bool) -> Vec<ActorComponent> {
   let mut actors = Vec::new();
 
   // Initialize players
@@ -1147,7 +1151,7 @@ fn spawn_actors(map: &mut LevelMap, players_count: usize) -> Vec<ActorComponent>
       ..Default::default()
     });
   }
-  init_players_positions(&mut actors);
+  init_players_positions(&mut actors, campaign_mode);
 
   // Take all the monsters from the map and add them to the actors list
   for cursor in Cursor::all() {
@@ -1168,21 +1172,20 @@ fn spawn_actors(map: &mut LevelMap, players_count: usize) -> Vec<ActorComponent>
   }
   actors
 }
-fn init_players_positions(players: &mut [ActorComponent]) {
-  let mut rng = rand::thread_rng();
+fn init_players_positions(players: &mut [ActorComponent], campaign_mode: bool) {
+  if campaign_mode {
+    players.iter_mut().for_each(|p| p.pos = Position::new(15, 45));
+    return;
+  }
 
-  if players.len() == 1 {
+  let mut rng = thread_rng();
+
+  if rng.gen::<bool>() {
     players[0].pos = Position::new(15, 45);
+    players[1].pos = Position::new(625, 465);
   } else {
-    let mut rng = rand::thread_rng();
-
-    if rng.gen::<bool>() {
-      players[0].pos = Position::new(15, 45);
-      players[1].pos = Position::new(625, 465);
-    } else {
-      players[0].pos = Position::new(625, 465);
-      players[1].pos = Position::new(15, 45);
-    }
+    players[0].pos = Position::new(625, 465);
+    players[1].pos = Position::new(15, 45);
   }
 
   if players.len() == 3 {

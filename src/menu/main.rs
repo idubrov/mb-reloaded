@@ -40,7 +40,7 @@ impl SelectedMenu {
 }
 
 impl Application<'_> {
-  pub fn main_menu(self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  pub fn main_menu(self, ctx: &mut ApplicationContext, campaign_mode: bool) -> Result<(), anyhow::Error> {
     self.music1.play(-1).map_err(SdlError)?;
 
     ctx.render_texture(&self.title.texture)?;
@@ -51,13 +51,15 @@ impl Application<'_> {
       return Ok(());
     }
 
-    self.main_menu_loop(ctx)?;
+    self.main_menu_loop(ctx, campaign_mode)?;
     Ok(())
   }
 
   /// Returns when exiting the game
-  fn main_menu_loop(&self, ctx: &mut ApplicationContext) -> Result<(), anyhow::Error> {
+  fn main_menu_loop(&self, ctx: &mut ApplicationContext, campaign_mode: bool) -> Result<(), anyhow::Error> {
     let mut settings = GameSettings::load(ctx.game_dir());
+    settings.options.campaign_mode = campaign_mode;
+
     let mut selected_item = SelectedMenu::NewGame;
     loop {
       self.render_main_menu(ctx, selected_item)?;

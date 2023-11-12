@@ -214,7 +214,7 @@ impl World<'_> {
         }
       }
       MapValue::Biomass => {
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
         let clock = rng.gen_range(1..141);
         self.maps.timer[cursor] = clock;
 
@@ -237,7 +237,7 @@ impl World<'_> {
   }
 
   fn explode_jumping_bomb(&mut self, cursor: Cursor, total: u32) {
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
     let bomb = *[MapValue::SmallBomb1, MapValue::BigBomb1, MapValue::Dynamite1]
       .choose(&mut rng)
       .unwrap();
@@ -278,7 +278,7 @@ impl World<'_> {
   }
 
   fn explode_barrel(&mut self, cursor: Cursor, total: u32) {
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
 
     self.maps.level[cursor] = MapValue::Explosion;
     self.maps.timer[cursor] = 3;

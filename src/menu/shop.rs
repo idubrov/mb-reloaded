@@ -81,6 +81,7 @@ impl Application<'_> {
     remaining_rounds: u16,
     options: &Options,
     preview_map: Option<&LevelMap>,
+    shared_cash: &mut Option<u32>,
     left: Option<&mut PlayerComponent>,
     right: &mut PlayerComponent,
   ) -> Result<ShopResult, anyhow::Error> {
@@ -109,9 +110,9 @@ impl Application<'_> {
 
       // Background
       if let Some(left) = &state.left {
-        self.render_player_stats(canvas, 0, left)?;
+        self.render_player_stats(canvas, 0, *shared_cash, left)?;
       }
-      self.render_player_stats(canvas, 420, &state.right)?;
+      self.render_player_stats(canvas, 420, *shared_cash, &state.right)?;
 
       // All shop items
       if let Some(left) = &state.left {
@@ -143,9 +144,9 @@ impl Application<'_> {
       }
 
       if let Some(left) = &mut state.left {
-        self.handle_player_keys(ctx, scan, true, options.selling, left, &state.prices)?;
+        self.handle_player_keys(ctx, scan, true, options.selling, shared_cash, left, &state.prices)?;
       }
-      self.handle_player_keys(ctx, scan, false, options.selling, &mut state.right, &state.prices)?;
+      self.handle_player_keys(ctx, scan, false, options.selling, shared_cash, &mut state.right, &state.prices)?;
     }
 
     ctx.animate(Animation::FadeDown, 7)?;
@@ -158,6 +159,7 @@ impl Application<'_> {
     scan: Scancode,
     left: bool,
     selling: bool,
+    shared_cash: &mut Option<u32>,
     state: &mut PlayerState,
     prices: &Prices,
   ) -> Result<(), anyhow::Error> {
@@ -168,11 +170,12 @@ impl Application<'_> {
       return Ok(());
     }
 
+    let cash = shared_cash.as_mut().unwrap_or(&mut state.entity.cash);
     let offset = state.selection.map_or(Equipment::TOTAL as u8, |item| item as u8);
     if Some(scan) == state.entity.keys[Key::Bomb] {
       if let Some(selection) = state.selection {
-        if state.entity.cash >= prices[selection] {
-          state.entity.cash -= prices[selection];
+        if *cash >= prices[selection] {
+          *cash -= prices[selection];
           state.entity.inventory[selection] += 1;
           state.entity.stats.bombs_bought += 1;
         }
@@ -183,7 +186,7 @@ impl Application<'_> {
       if let Some(selection) = state.selection {
         if selling && state.entity.inventory[selection] > 0 {
           // Only return 70% of the cost
-          state.entity.cash += (7 * prices[selection] + 5) / 10;
+          *cash += (7 * prices[selection] + 5) / 10;
           state.entity.inventory[selection] -= 1;
         }
       }
@@ -202,7 +205,7 @@ impl Application<'_> {
 
     ctx.with_render_context(|canvas| {
       let offsets = if left { (0, 0) } else { (420, 320) };
-      self.render_player_stats(canvas, offsets.0, state)?;
+      self.render_player_stats(canvas, offsets.0, *shared_cash, state)?;
 
       if last_selection != state.selection {
         self.render_shop_slot(canvas, offsets.1, last_selection, state, prices)?;
@@ -218,6 +221,7 @@ impl Application<'_> {
     &self,
     canvas: &mut WindowCanvas,
     offset_x: i32,
+    shared_cash: Option<u32>,
     state: &PlayerState,
   ) -> Result<(), anyhow::Error> {
     canvas.set_draw_color(Color::BLACK);
@@ -225,9 +229,6 @@ impl Application<'_> {
     let palette = &self.shop.palette;
     canvas
       .fill_rect(Rect::new(35 + offset_x, 30, 7 * 8, 8))
-      .map_err(SdlError)?;
-    canvas
-      .fill_rect(Rect::new(35 + offset_x, 44, 7 * 8, 8))
       .map_err(SdlError)?;
     canvas
       .fill_rect(Rect::new(35 + offset_x, 58, 7 * 8, 8))
@@ -240,9 +241,31 @@ impl Application<'_> {
     self
       .font
       .render(canvas, 35 + offset_x, 30, palette[3], &power.to_string())?;
-    self
-      .font
-      .render(canvas, 35 + offset_x, 44, palette[5], &state.entity.cash.to_string())?;
+    if let Some(cash) = shared_cash {
+      let cash = cash.to_string();
+
+      // Update cash for the both players
+      canvas
+        .fill_rect(Rect::new(35, 44, 7 * 8, 8))
+        .map_err(SdlError)?;
+      canvas
+        .fill_rect(Rect::new(455, 44, 7 * 8, 8))
+        .map_err(SdlError)?;
+      self
+        .font
+        .render(canvas, 35, 44, palette[5], &cash)?;
+      self
+        .font
+        .render(canvas, 455, 44, palette[5], &cash)?;
+    } else {
+      canvas
+        .fill_rect(Rect::new(35 + offset_x, 44, 7 * 8, 8))
+        .map_err(SdlError)?;
+      self
+        .font
+        .render(canvas, 35 + offset_x, 44, palette[5], &state.entity.cash.to_string())?;
+    }
+
     if let Some(item) = state.selection {
       let item_count = state.entity.inventory[item];
       self

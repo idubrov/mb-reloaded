@@ -24,7 +24,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-const SINGLE_PLAYER_ROUNDS: u16 = 15;
+const CAMPAIGN_ROUNDS: u16 = 15;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RoundEnd {
@@ -40,7 +40,7 @@ impl Application<'_> {
   /// Play game, starting from player selection
   pub fn play_game(&self, ctx: &mut ApplicationContext, settings: &GameSettings) -> Result<(), anyhow::Error> {
     sdl2::mixer::Music::halt();
-    let single_player = settings.options.players == 1;
+    let campaign_mode = settings.options.campaign_mode;
     let selected = self.players_select_menu(ctx, settings.options.players)?;
     if selected.is_empty() {
       return Ok(());
@@ -57,15 +57,15 @@ impl Application<'_> {
       players_to_roster.push(selected.roster_index);
     }
 
-    if single_player {
+    if campaign_mode {
       // In single player, we start with 250
       players[0].cash = 250;
       players[0].lives = 3;
     }
 
     let mut round = 0;
-    while (!single_player && round < settings.options.rounds)
-      || (single_player && players[0].lives > 0 && round < SINGLE_PLAYER_ROUNDS)
+    while (!campaign_mode && round < settings.options.rounds)
+      || (campaign_mode && players[0].lives > 0 && round < CAMPAIGN_ROUNDS)
     {
       ctx.with_render_context(|canvas| {
         canvas.set_draw_color(Color::BLACK);
@@ -80,8 +80,8 @@ impl Application<'_> {
       // Select a level to play
       ctx.animate(Animation::FadeUp, 7)?;
       let slot;
-      let level = if settings.options.players == 1 {
-        slot = LevelMap::prepare_singleplayer_level(ctx.game_dir(), round)?;
+      let level = if settings.options.players == 1 || settings.options.campaign_mode {
+        slot = LevelMap::prepare_campaign_level(ctx.game_dir(), round)?;
         &slot
       } else {
         settings
@@ -92,7 +92,7 @@ impl Application<'_> {
       };
       ctx.animate(Animation::FadeDown, 7)?;
       let result = self.play_round(ctx, &mut players, round, level, settings)?;
-      if single_player && players[0].lives == 0 {
+      if campaign_mode && players[0].lives == 0 {
         // End of game: out of lives!
         break;
       }
@@ -107,8 +107,8 @@ impl Application<'_> {
       }
     }
 
-    if single_player {
-      self.single_player_end(ctx, round == SINGLE_PLAYER_ROUNDS)?;
+    if campaign_mode {
+      self.campaign_end(ctx, round == CAMPAIGN_ROUNDS)?;
       self.hall_of_fame(ctx, round as u8, &players[0])?;
     } else {
       self.multi_player_end(ctx, &players, settings.options.win)?;
@@ -117,8 +117,8 @@ impl Application<'_> {
     Ok(())
   }
 
-  /// Show ending screen of a single player game
-  fn single_player_end(&self, ctx: &mut ApplicationContext, win: bool) -> Result<(), anyhow::Error> {
+  /// Show ending screen of a campaign game
+  fn campaign_end(&self, ctx: &mut ApplicationContext, win: bool) -> Result<(), anyhow::Error> {
     let texture = if win {
       &self.game_win.texture
     } else {
@@ -267,18 +267,22 @@ impl Application<'_> {
     self.music2.play(-1).map_err(SdlError)?;
     sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
 
+    let mut shared_cash = if settings.options.campaign_mode { Some(players[0].cash) } else { None };
     let mut it = players.iter_mut();
     while let Some(right) = it.next() {
       let left = it.next();
       let remaining = settings.options.rounds - round;
       let preview_map = if darkness { None } else { Some(&level) };
-      if self.shop(ctx, remaining, &settings.options, preview_map, left, right)? == ShopResult::ExitGame {
+      if self.shop(ctx, remaining, &settings.options, preview_map, &mut shared_cash, left, right)? == ShopResult::ExitGame {
         sdl2::mixer::Music::halt();
         return Ok(RoundEnd::Game);
       }
     }
 
-    let mut world = World::create(level, players, darkness, settings.options.bomb_damage);
+    if let Some(cash) = shared_cash {
+      players[0].cash = cash;
+    }
+    let mut world = World::create(level, players, darkness, settings.options.bomb_damage, settings.options.campaign_mode);
 
     sdl2::mixer::Music::halt();
     // FIXME: start playing random music from the level music; also, don't play shop music?
@@ -309,7 +313,7 @@ impl Application<'_> {
           } = event
           {
             match scancode {
-              Scancode::Escape if world.is_single_player() => {
+              Scancode::Escape if world.campaign_mode => {
                 // Artificial death
                 world.players[0].lives -= 1;
                 break 'round RoundEnd::Failed;
@@ -354,8 +358,8 @@ impl Application<'_> {
       ctx.with_render_context(|canvas| {
         if world.update.players_info {
           self.render_players_info(canvas, &world)?;
-          if world.is_single_player() {
-            self.render_lives(canvas, world.players[0].lives)?;
+          if world.campaign_mode {
+            self.render_lives(canvas, world.players.len() as i32, world.players[0].lives)?;
           }
           world.update.players_info = false;
         }
@@ -388,7 +392,7 @@ impl Application<'_> {
         }
 
         // Update end of round indicator
-        if !world.is_single_player() {
+        if !world.campaign_mode {
           let width = ((635 * round_time.as_millis()) / settings.options.round_time.as_millis()).min(635) as i32;
           canvas.set_draw_color(self.players.palette[0]);
           canvas
@@ -400,12 +404,12 @@ impl Application<'_> {
         Ok(())
       })?;
 
-      if !world.is_single_player() && round_time >= settings.options.round_time {
+      if !world.campaign_mode && round_time >= settings.options.round_time {
         break RoundEnd::Round;
       }
 
       if world.is_end_of_round() {
-        if world.is_single_player() && world.actors[0].is_dead {
+        if world.campaign_mode && world.alive_players() == 0 {
           break RoundEnd::Failed;
         }
         break RoundEnd::Round;
@@ -455,8 +459,8 @@ impl Application<'_> {
     }
 
     self.render_players_info(canvas, world)?;
-    if world.is_single_player() {
-      self.render_lives(canvas, world.players[0].lives)?;
+    if world.campaign_mode {
+      self.render_lives(canvas, world.players.len() as i32, world.players[0].lives)?;
     } else {
       // Time bar
       canvas.set_draw_color(self.players.palette[6]);
@@ -633,13 +637,15 @@ impl Application<'_> {
     // Current weapon selection
     const PLAYER_X: [i32; 4] = [12, 174, 337, 500];
     let palette = &self.players.palette;
-    for (idx, (player, pos_x)) in world.players.iter().zip(PLAYER_X.iter()).enumerate() {
+    for idx in 0..world.players.len() {
+      let player = &world.players[idx];
+      let pos_x = PLAYER_X[idx];
       self
         .glyphs
-        .render(canvas, *pos_x, 0, Glyph::Selection(player.selection))?;
+        .render(canvas, pos_x, 0, Glyph::Selection(player.selection))?;
       self.font.render(
         canvas,
-        *pos_x,
+        pos_x,
         0,
         palette[1],
         &player.inventory[player.selection].to_string(),
@@ -660,7 +666,9 @@ impl Application<'_> {
 
       canvas.set_draw_color(Color::BLACK);
       canvas.fill_rect(Rect::new(pos_x + 50, 21, 40, 8)).map_err(SdlError)?;
-      let total_cash = player.cash + world.actors[idx].accumulated_cash;
+
+      let cash_idx = if world.campaign_mode { 0 } else { idx };
+      let total_cash = world.players[cash_idx].cash + world.actors[cash_idx].accumulated_cash;
       self
         .font
         .render(canvas, pos_x + 50, 21, palette[5], &total_cash.to_string())?;
@@ -693,12 +701,12 @@ impl Application<'_> {
     Ok(())
   }
 
-  fn render_lives(&self, canvas: &mut WindowCanvas, lives: u16) -> Result<(), anyhow::Error> {
+  fn render_lives(&self, canvas: &mut WindowCanvas, players: i32, lives: u16) -> Result<(), anyhow::Error> {
     canvas.set_draw_color(Color::BLACK);
-    canvas.fill_rect(Rect::new(160, 2, 480, 28)).map_err(SdlError)?;
+    canvas.fill_rect(Rect::new(160 * players, 2, 480, 28)).map_err(SdlError)?;
     for idx in 0..lives.max(3) {
       let glyph = if idx < lives { Glyph::Life } else { Glyph::LifeLost };
-      self.glyphs.render(canvas, i32::from(idx * 16) + 160, 2, glyph)?;
+      self.glyphs.render(canvas, i32::from(idx * 16) + 160 * players, 2, glyph)?;
     }
     Ok(())
   }

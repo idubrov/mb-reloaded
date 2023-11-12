@@ -25,6 +25,7 @@ pub struct Options {
   pub selling: bool,
   pub win: WinCondition,
   pub bomb_damage: u8,
+  pub campaign_mode: bool,
 }
 
 impl Default for Options {
@@ -41,6 +42,7 @@ impl Default for Options {
       selling: false,
       win: WinCondition::ByMoney,
       bomb_damage: 100,
+      campaign_mode: false,
     }
   }
 }
@@ -69,6 +71,7 @@ impl Options {
         WinCondition::ByMoney
       },
       bomb_damage: it.read_u8().unwrap(),
+      campaign_mode: false,
     };
     if opts.players > 4 {
       opts.players = 2;

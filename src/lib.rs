@@ -33,10 +33,11 @@ pub struct Avatars<'t> {
 }
 
 pub fn main() -> Result<(), anyhow::Error> {
-  let path = args::parse_args();
-  context::ApplicationContext::with_context(path, |mut ctx| {
+  let args = args::parse_args();
+  let campaign_mode = args.campaign_mode;
+  ApplicationContext::with_context(args.path, |mut ctx| {
     let app = Application::init(&ctx)?;
-    app.main_menu(&mut ctx)?;
+    app.main_menu(&mut ctx, campaign_mode)?;
     Ok(())
   })?;
   Ok(())

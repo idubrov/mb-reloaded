@@ -99,8 +99,8 @@ impl LevelMap {
     map
   }
 
-  /// Load a single player level for a given round
-  pub fn prepare_singleplayer_level(game_dir: &Path, round: u16) -> Result<LevelInfo, CannotLoadSinglePlayer> {
+  /// Load a campaign level for a given round
+  pub fn prepare_campaign_level(game_dir: &Path, round: u16) -> Result<LevelInfo, CannotLoadSinglePlayer> {
     let filename = format!("LEVEL{}.MNL", round);
     let path = game_dir.join(filename);
     let mut map = std::fs::read(&path)

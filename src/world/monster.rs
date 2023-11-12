@@ -35,7 +35,7 @@ impl World<'_> {
         } else {
           match look_for_players(monster_cursor, &self.actors[0..self.players.len()]) {
             // Clones shouldn't chase their player!
-            Some((player_cursor, player_idx)) if monster_kind != ActorKind::Clone(player_idx) => {
+            Some((player_cursor, player_idx)) if self.clone_can_chase(monster_kind, player_idx) => {
               self.actors[actor_idx].head_to_target(player_cursor, &self.maps.level);
 
               if let ActorKind::Clone(_) = monster_kind {
@@ -73,6 +73,13 @@ impl World<'_> {
     }
   }
 
+  fn clone_can_chase(&self, monster_kind: ActorKind, target_player: Player) -> bool {
+    return match monster_kind {
+      ActorKind::Clone(clone_player) if clone_player != target_player && !self.campaign_mode => true,
+      _ => true,
+    };
+  }
+
   /// Make given actor to cause damage to all players in the same cell
   fn damage_players(&mut self, actor: EntityIndex) {
     let cursor = self.actors[actor].pos.cursor();
@@ -81,8 +88,8 @@ impl World<'_> {
       let player = &mut self.actors[player_idx];
       if player.pos.cursor() == cursor {
         match (player.kind, monster_kind) {
-          (ActorKind::Player(p1), ActorKind::Clone(p2)) if p1 == p2 => {
-            // Nothing! This is our clone!
+          (ActorKind::Player(p1), ActorKind::Clone(p2)) if p1 == p2 || self.campaign_mode => {
+            // Nothing! This is our clone! Also, no damage in campaign mode.
           }
           _ => {
             player.health = player.health.saturating_sub(monster_kind.damage());
