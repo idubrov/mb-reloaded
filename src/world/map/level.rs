@@ -55,7 +55,7 @@ impl LevelMap {
   /// Create statically typed map from a vector of bytes.
   pub fn from_file_map(external_map: Vec<u8>) -> Result<LevelMap, InvalidMap> {
     // Each map is 45 lines 66 bytes each (64 columns plus "\r\n" at the end of each row)
-    if external_map.len() != 2970 {
+    if external_map.len() < 2970 {
       return Err(InvalidMap);
     }
 
