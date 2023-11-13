@@ -697,7 +697,7 @@ impl<'p> World<'p> {
       self.update.update_cell(cursor);
       self.effects.play(SoundEffect::Picaxe, 11000, cursor);
     } else if value == MapValue::LifeItem {
-      if self.actors[entity].kind == ActorKind::Player(Player::Player1) {
+      if let ActorKind::Player(_) = self.actors[entity].kind {
         self.players[0].lives += 1;
         self.update.update_player_lives();
       }

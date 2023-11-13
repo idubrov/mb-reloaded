@@ -40,7 +40,7 @@ impl Application<'_> {
   /// Play game, starting from player selection
   pub fn play_game(&self, ctx: &mut ApplicationContext, settings: &GameSettings) -> Result<(), anyhow::Error> {
     sdl2::mixer::Music::halt();
-    let campaign_mode = settings.options.campaign_mode;
+    let campaign_mode = settings.options.players == 1 || settings.options.campaign_mode;
     let selected = self.players_select_menu(ctx, settings.options.players)?;
     if selected.is_empty() {
       return Ok(());
@@ -80,7 +80,7 @@ impl Application<'_> {
       // Select a level to play
       ctx.animate(Animation::FadeUp, 7)?;
       let slot;
-      let level = if settings.options.players == 1 || settings.options.campaign_mode {
+      let level = if campaign_mode {
         slot = LevelMap::prepare_campaign_level(ctx.game_dir(), round)?;
         &slot
       } else {
@@ -91,7 +91,7 @@ impl Application<'_> {
           .unwrap_or(&LevelInfo::Random)
       };
       ctx.animate(Animation::FadeDown, 7)?;
-      let result = self.play_round(ctx, &mut players, round, level, settings)?;
+      let result = self.play_round(ctx, &mut players, round, level, settings, campaign_mode)?;
       if campaign_mode && players[0].lives == 0 {
         // End of game: out of lives!
         break;
@@ -249,6 +249,7 @@ impl Application<'_> {
     round: u16,
     level: &LevelInfo,
     settings: &GameSettings,
+    campaign_mode: bool,
   ) -> Result<RoundEnd, anyhow::Error> {
     // Note: in original game, single player is always played dark. However, in this
     // re-implementation I'm relaxing this as I never had patience to play through all 15 levels
@@ -267,11 +268,12 @@ impl Application<'_> {
     self.music2.play(-1).map_err(SdlError)?;
     sdl2::mixer::Music::set_pos(464.8).map_err(SdlError)?;
 
-    let mut shared_cash = if settings.options.campaign_mode { Some(players[0].cash) } else { None };
+    let mut shared_cash = if campaign_mode { Some(players[0].cash) } else { None };
     let mut it = players.iter_mut();
     while let Some(right) = it.next() {
       let left = it.next();
-      let remaining = settings.options.rounds - round;
+      let total_rounds = if campaign_mode { 15 } else { settings.options.rounds };
+      let remaining = total_rounds - round;
       let preview_map = if darkness { None } else { Some(&level) };
       if self.shop(ctx, remaining, &settings.options, preview_map, &mut shared_cash, left, right)? == ShopResult::ExitGame {
         sdl2::mixer::Music::halt();
@@ -282,7 +284,6 @@ impl Application<'_> {
     if let Some(cash) = shared_cash {
       players[0].cash = cash;
     }
-    let campaign_mode = players.len() == 1 || settings.options.campaign_mode;
     let mut world = World::create(level, players, darkness, settings.options.bomb_damage, campaign_mode);
 
     sdl2::mixer::Music::halt();
