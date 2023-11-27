@@ -328,7 +328,7 @@ impl LevelMap {
     // Original game would randomize treasures, but "min treasures" is always the same as
     // "max treasures", so we don't bother calling random.
 
-    let distribution = WeightedIndex::new(&RANDOM_TREASURES_WEIGHTS).unwrap();
+    let distribution = WeightedIndex::new(RANDOM_TREASURES_WEIGHTS).unwrap();
 
     let mut treasures_in_stone = 0;
     for _ in 0..treasures {

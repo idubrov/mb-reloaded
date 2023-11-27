@@ -26,7 +26,7 @@ pub fn parse_args() -> Args {
       }
     }
   }
-  if args.path.as_os_str().len() == 0 {
+  if args.path.as_os_str().is_empty() {
     args.path = match std::env::current_dir() {
       Ok(cur) => cur,
       Err(err) => {

@@ -217,8 +217,8 @@ impl Application<'_> {
       (false, true) => ACTIVE_UNSELECTED,
       (true, true) => ACTIVE_SELECTED,
     };
-    let left = (column * 80) as i32;
-    let top = (row * 10 + 74) as i32;
+    let left = column * 80;
+    let top = row * 10 + 74;
     let level_name = match level.as_ref() {
       LevelInfo::Random => "Random",
       LevelInfo::File { ref name, .. } => name,

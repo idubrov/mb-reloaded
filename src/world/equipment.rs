@@ -4,8 +4,9 @@ use std::convert::TryInto;
 /// Types of equipment that could be stored in an inventory and bought in the shop. Note that
 /// ordering is the same as shop ordering (left to right, top to bottom).
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, Default)]
 pub enum Equipment {
+  #[default]
   SmallBomb,
   BigBomb,
   Dynamite,
@@ -33,12 +34,6 @@ pub enum Equipment {
   Armor,
   JumpingBomb,
   SuperDrill,
-}
-
-impl Default for Equipment {
-  fn default() -> Self {
-    Equipment::SmallBomb
-  }
 }
 
 impl Equipment {

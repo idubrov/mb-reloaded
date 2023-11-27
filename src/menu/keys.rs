@@ -63,7 +63,7 @@ impl Application<'_> {
       for layer in 0..3 {
         for key in 0..8 {
           let key: Key = key.try_into().unwrap();
-          let keys = &keys_config.keys[player as usize];
+          let keys = &keys_config.keys[player];
           let color = self.keys.palette[COLORS[layer]];
 
           let y = key_pos_y(player, key);

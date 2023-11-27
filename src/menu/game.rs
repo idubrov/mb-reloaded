@@ -648,8 +648,7 @@ impl Application<'_> {
     // Current weapon selection
     const PLAYER_X: [i32; 4] = [12, 174, 337, 500];
     let palette = &self.players.palette;
-    for idx in 0..world.players.len() {
-      let player = &world.players[idx];
+    for (idx, player) in world.players.iter().enumerate() {
       let pos_x = PLAYER_X[idx];
       self
         .glyphs

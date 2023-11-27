@@ -45,7 +45,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     let sdl_context = sdl2::init().map_err(SdlError)?;
     let video = sdl_context.video().map_err(SdlError)?;
     let mut window = video
-      .window("MineBombers Reloaded", SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)
+      .window("MineBombers Reloaded", SCREEN_WIDTH, SCREEN_HEIGHT)
       .position_centered()
       .allow_highdpi()
       .resizable()
@@ -68,7 +68,7 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     // This allows us to do additive rendering and do a "pallette animation" by blending it
     // with an alpha modifier on top of black screen.
     let buffer =
-      texture_creator.create_texture_target(PixelFormatEnum::RGB24, SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32)?;
+      texture_creator.create_texture_target(PixelFormatEnum::RGB24, SCREEN_WIDTH, SCREEN_HEIGHT)?;
 
     // Initialize audio
     sdl2::mixer::open_audio(44100, AUDIO_S16LSB, 2, 1024).map_err(SdlError)?;

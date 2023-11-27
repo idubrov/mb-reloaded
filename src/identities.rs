@@ -44,6 +44,6 @@ impl Identities {
         Some(value) => value + 1,
       }
     }
-    std::fs::write(&path, &output).map_err(|source| IdentitiesSaveError { path, source })
+    std::fs::write(&path, output).map_err(|source| IdentitiesSaveError { path, source })
   }
 }

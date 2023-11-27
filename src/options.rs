@@ -109,7 +109,7 @@ impl Options {
     let data = self.save_inner();
     let path = game_dir.join("OPTIONS.CFG");
     // FIXME: either proper errors or logging
-    std::fs::write(path, &data)?;
+    std::fs::write(path, data)?;
     Ok(())
   }
 
@@ -130,7 +130,7 @@ impl Options {
     } else {
       buf.write_u8(0).unwrap();
     };
-    buf.write_u8(self.bomb_damage as u8).unwrap();
+    buf.write_u8(self.bomb_damage).unwrap();
     assert_eq!(buf.len(), 17);
     buf
   }
