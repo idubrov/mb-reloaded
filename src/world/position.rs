@@ -27,6 +27,16 @@ impl Direction {
       Direction::Down => Direction::Up,
     }
   }
+
+  /// Ortho direction (turn 90 degrees to the right)
+  pub fn ortho(self) -> Self {
+    match self {
+      Direction::Left => Direction::Up,
+      Direction::Up => Direction::Right,
+      Direction::Right => Direction::Down,
+      Direction::Down => Direction::Left,
+    }
+  }
 }
 
 /// Position on the map. Center of the row 0, column 0 is (x = 5; y = 35)
@@ -124,7 +134,7 @@ impl Cursor {
     }
   }
 
-  /// Offset given cursor by given delta; returns `None` if hits border of the map or outside of the map.
+  /// Offset given cursor by given delta; clamps the values to the area inside the map.
   pub fn offset_clamp(self, delta_row: i16, delta_col: i16) -> Cursor {
     let row = ((self.row as i16) + delta_row).max(0).min((MAP_ROWS - 1) as i16);
     let col = ((self.col as i16) + delta_col).max(0).min((MAP_COLS - 1) as i16);

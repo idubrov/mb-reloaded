@@ -942,17 +942,9 @@ impl<'p> World<'p> {
     let mut cursor = self.actors[player_idx].pos.cursor();
     let facing = self.actors[player_idx].facing;
 
-    let (mut view_at, offset_dir) = match facing {
-      Direction::Left => (cursor.offset_clamp(-20, -20), Direction::Down),
-      Direction::Up => (cursor.offset_clamp(-20, -20), Direction::Right),
-      Direction::Right => (cursor.offset_clamp(-20, 20), Direction::Down),
-      Direction::Down => (cursor.offset_clamp(20, -20), Direction::Right),
-    };
-
     // Note: in original game, we do 40 iterations, which makes it unsymmetric. Here we do 41 instead.
-    for _ in 0..=40 {
-      self.cast_view_ray(cursor, view_at);
-      view_at = view_at.to(offset_dir);
+    for offset in -20..=20 {
+      self.cast_view_ray(cursor, 20, offset, facing);
     }
 
     while !cursor.is_on_border() && self.maps.level[cursor].is_passable() {
@@ -967,29 +959,18 @@ impl<'p> World<'p> {
     }
   }
 
-  /// Cast a view ray from the `cursor` position to `target` position to reveal which cells are
-  /// visible from a `cursor` position.
-  fn cast_view_ray(&mut self, cursor: Cursor, target: Cursor) {
-    // Original game used floating point arithmetics to draw a line, but we use Bresenham's algorithm.
-    // Here `delta_x` is the larger difference (delta row or delta column) and `delta_y` is the smaller.
-    // (Bresenham's algorithm is typically formulated for one quadrant, where dx > dy).
-    let delta = cursor.distance(target);
-    // If main loop variable (`x`) is tracking rows (goes in a vertical direction) vs columns (horizontal).
-    let vertical = delta.0 > delta.1;
-    let (delta_x, delta_y) = if vertical {
-      (delta.0, delta.1)
+  // Original game used floating point arithmetics to draw a line, but we use Bresenham's algorithm.
+  // Here `len` is the length of the ray (along a single axis), `offset` is the offset from the
+  // center of the ray (along the other axis). `view_dir` is the direction of the ray.
+  fn cast_view_ray(&mut self, cursor: Cursor, len: i16, offset: i16, view_dir: Direction) {
+    let (offset, ortho_dir) = if offset < 0 {
+      (-offset, view_dir.ortho().reverse())
     } else {
-      (delta.1, delta.0)
+      (offset, view_dir.ortho())
     };
-
-    let mut slope_error = i32::from(2 * delta_y) - i32::from(delta_x);
-    let mut y = 0;
-    for x in 0..=delta_x {
-      let (row_delta, col_delta) = if vertical { (x, y) } else { (y, x) };
-      let row = towards(cursor.row, target.row, row_delta);
-      let col = towards(cursor.col, target.col, col_delta);
-      let current = Cursor::new(row, col);
-
+    let mut slope_error = i32::from(2 * offset) - i32::from(len);
+    let mut current = cursor;
+    for _ in 0..=len {
       if self.maps.fog[current].dark {
         self.update.update_cell(current);
       }
@@ -999,10 +980,11 @@ impl<'p> World<'p> {
 
       // Bresenham's algorithm
       if slope_error > 0 {
-        y += 1;
-        slope_error -= i32::from(2 * delta_x);
+        current = current.to(ortho_dir);
+        slope_error -= i32::from(2 * len);
       }
-      slope_error += i32::from(2 * delta_y);
+      slope_error += i32::from(2 * offset);
+      current = current.to(view_dir);
     }
   }
 
@@ -1349,14 +1331,5 @@ fn grenade_value(direction: Direction) -> MapValue {
     Direction::Right => MapValue::GrenadeFlyingRight,
     Direction::Up => MapValue::GrenadeFlyingUp,
     Direction::Down => MapValue::GrenadeFlyingDown,
-  }
-}
-
-/// Move `delta` points from `from` value towards `to` value
-fn towards(from: u16, to: u16, delta: u16) -> u16 {
-  if from < to {
-    from + delta
-  } else {
-    from - delta
   }
 }
