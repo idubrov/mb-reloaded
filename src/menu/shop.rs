@@ -146,7 +146,15 @@ impl Application<'_> {
       if let Some(left) = &mut state.left {
         self.handle_player_keys(ctx, scan, true, options.selling, shared_cash, left, &state.prices)?;
       }
-      self.handle_player_keys(ctx, scan, false, options.selling, shared_cash, &mut state.right, &state.prices)?;
+      self.handle_player_keys(
+        ctx,
+        scan,
+        false,
+        options.selling,
+        shared_cash,
+        &mut state.right,
+        &state.prices,
+      )?;
     }
 
     ctx.animate(Animation::FadeDown, 7)?;
@@ -245,18 +253,10 @@ impl Application<'_> {
       let cash = cash.to_string();
 
       // Update cash for the both players
-      canvas
-        .fill_rect(Rect::new(35, 44, 7 * 8, 8))
-        .map_err(SdlError)?;
-      canvas
-        .fill_rect(Rect::new(455, 44, 7 * 8, 8))
-        .map_err(SdlError)?;
-      self
-        .font
-        .render(canvas, 35, 44, palette[5], &cash)?;
-      self
-        .font
-        .render(canvas, 455, 44, palette[5], &cash)?;
+      canvas.fill_rect(Rect::new(35, 44, 7 * 8, 8)).map_err(SdlError)?;
+      canvas.fill_rect(Rect::new(455, 44, 7 * 8, 8)).map_err(SdlError)?;
+      self.font.render(canvas, 35, 44, palette[5], &cash)?;
+      self.font.render(canvas, 455, 44, palette[5], &cash)?;
     } else {
       canvas
         .fill_rect(Rect::new(35 + offset_x, 44, 7 * 8, 8))

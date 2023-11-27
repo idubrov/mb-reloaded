@@ -257,11 +257,7 @@ impl Application<'_> {
   ) -> Result<Option<Texture<'t>>, anyhow::Error> {
     match level {
       LevelInfo::Random => Ok(None),
-      LevelInfo::File { map, .. } => Ok(Some(generate_preview(
-        map,
-        texture_creator,
-        &self.levels_menu.palette,
-      )?)),
+      LevelInfo::File { map, .. } => Ok(Some(generate_preview(map, texture_creator, &self.levels_menu.palette)?)),
     }
   }
 }

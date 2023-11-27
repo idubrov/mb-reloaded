@@ -1,6 +1,6 @@
+use clap::Parser;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use clap::Parser;
 
 /// Generate random map file
 #[derive(Parser)]

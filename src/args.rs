@@ -14,7 +14,7 @@ pub fn parse_args() -> Args {
     match arg.as_str() {
       "--campaign" => {
         args.campaign_mode = true;
-      },
+      }
       "--help" => {
         eprintln!("MineBombers 3.11\n");
         eprintln!("USAGE:");
@@ -23,7 +23,7 @@ pub fn parse_args() -> Args {
       }
       arg => {
         args.path = PathBuf::from(arg);
-      },
+      }
     }
   }
   if args.path.as_os_str().len() == 0 {

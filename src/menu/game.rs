@@ -275,7 +275,16 @@ impl Application<'_> {
       let total_rounds = if campaign_mode { 15 } else { settings.options.rounds };
       let remaining = total_rounds - round;
       let preview_map = if darkness { None } else { Some(&level) };
-      if self.shop(ctx, remaining, &settings.options, preview_map, &mut shared_cash, left, right)? == ShopResult::ExitGame {
+      if self.shop(
+        ctx,
+        remaining,
+        &settings.options,
+        preview_map,
+        &mut shared_cash,
+        left,
+        right,
+      )? == ShopResult::ExitGame
+      {
         sdl2::mixer::Music::halt();
         return Ok(RoundEnd::Game);
       }
@@ -705,10 +714,14 @@ impl Application<'_> {
 
   fn render_lives(&self, canvas: &mut WindowCanvas, players: i32, lives: u16) -> Result<(), anyhow::Error> {
     canvas.set_draw_color(Color::BLACK);
-    canvas.fill_rect(Rect::new(160 * players, 2, 480, 28)).map_err(SdlError)?;
+    canvas
+      .fill_rect(Rect::new(160 * players, 2, 480, 28))
+      .map_err(SdlError)?;
     for idx in 0..lives.max(3) {
       let glyph = if idx < lives { Glyph::Life } else { Glyph::LifeLost };
-      self.glyphs.render(canvas, i32::from(idx * 16) + 160 * players, 2, glyph)?;
+      self
+        .glyphs
+        .render(canvas, i32::from(idx * 16) + 160 * players, 2, glyph)?;
     }
     Ok(())
   }

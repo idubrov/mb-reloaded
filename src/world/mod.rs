@@ -77,7 +77,13 @@ impl SoundEffectsQueue {
 pub type EntityIndex = usize;
 
 impl<'p> World<'p> {
-  pub fn create(mut level: LevelMap, players: &'p mut [PlayerComponent], darkness: bool, bomb_damage: u8, campaign_mode: bool) -> Self {
+  pub fn create(
+    mut level: LevelMap,
+    players: &'p mut [PlayerComponent],
+    darkness: bool,
+    bomb_damage: u8,
+    campaign_mode: bool,
+  ) -> Self {
     let mut actors = spawn_actors(&mut level, players.len(), campaign_mode);
 
     // Initialize players health and drilling power
@@ -1125,7 +1131,8 @@ fn item_placement_hits(item: Equipment) -> i32 {
 }
 
 fn is_selectable(item: Equipment) -> bool {
-  !matches!(item,
+  !matches!(
+    item,
     Equipment::SmallPickaxe | Equipment::LargePickaxe | Equipment::Drill | Equipment::Armor
   )
 }

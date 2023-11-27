@@ -1,8 +1,8 @@
+use clap::Parser;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use clap::Parser;
 
 /// Convert SPY file into a PNG image
 #[derive(Parser)]
