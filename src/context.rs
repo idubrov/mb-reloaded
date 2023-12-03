@@ -58,8 +58,10 @@ impl<'canvas, 'textures> ApplicationContext<'canvas, 'textures> {
     let surface =
       Surface::from_data(&mut spy.image[from..], 96, 96, 3 * SCREEN_WIDTH, PixelFormatEnum::RGB24).map_err(SdlError)?;
     window.set_icon(&surface);
+    window.set_grab(true);
 
     let mut canvas = window.into_canvas().build()?;
+    sdl_context.mouse().show_cursor(false);
     let events = sdl_context.event_pump().map_err(SdlError)?;
     let texture_creator = canvas.texture_creator();
 
